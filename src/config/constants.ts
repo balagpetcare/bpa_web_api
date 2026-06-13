@@ -30,6 +30,16 @@ export const RESOURCES = {
   CAMPAIGN_CHECKIN: 'campaign_checkin',
   CAMPAIGN_CERTIFICATES: 'campaign_certificates',
   CAMPAIGN_ANALYTICS: 'campaign_analytics',
+  // Community Pet Care
+  COMMUNITY_ZONES: 'community_zones',
+  CONTRIBUTION_PLANS: 'contribution_plans',
+  CARE_CONTRIBUTIONS: 'care_contributions',
+  CARE_PARTNER_CARDS: 'care_partner_cards',
+  CARD_VERIFICATION_LOGS: 'card_verification_logs',
+  PET_CENSUS: 'pet_census',
+  TRANSPARENCY_REPORTS: 'transparency_reports',
+  PET_SMART_SOLUTION: 'pet_smart_solution',
+  COMMUNITY_FUND_DASHBOARD: 'community_fund_dashboard',
 } as const;
 
 export const ACTIONS = {
@@ -54,6 +64,9 @@ export const ROLES = {
   // Campaign roles
   CAMPAIGN_MANAGER: 'campaign_manager',
   CAMPAIGN_VOLUNTEER: 'campaign_volunteer',
+  // Community Pet Care
+  COMMUNITY_FUND_ADMIN: 'community_fund_admin',
+  COMMUNITY_FUND_VIEWER: 'community_fund_viewer',
 } as const;
 
 export const HTTP_STATUS = {

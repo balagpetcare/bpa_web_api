@@ -15,6 +15,11 @@ const RESOURCES = [
   'campaigns', 'campaign_sessions', 'campaign_services',
   'campaign_checkin', 'campaign_certificates', 'campaign_analytics',
   'campaign_registrations', 'campaign_waitlist', 'vaccination_records',
+  // Community Pet Care
+  'community_zones', 'contribution_plans', 'care_contributions',
+  'care_partner_cards', 'card_verification_logs',
+  'pet_census', 'transparency_reports', 'pet_smart_solution',
+  'community_fund_dashboard',
 ];
 
 const ACTIONS = [
@@ -66,6 +71,10 @@ async function main(): Promise<void> {
     'pet_owners', 'pets', 'doctors',
     'campaigns', 'campaign_sessions', 'campaign_services',
     'campaign_checkin', 'campaign_certificates', 'campaign_analytics',
+    'community_zones', 'contribution_plans', 'care_contributions',
+    'care_partner_cards', 'card_verification_logs',
+    'pet_census', 'transparency_reports', 'pet_smart_solution',
+    'community_fund_dashboard',
   ];
   const adminPermissions = allPermissions.filter((p) => adminResources.includes(p.resource));
   const adminRole = await prisma.role.upsert({
@@ -214,6 +223,43 @@ async function main(): Promise<void> {
     await upsertZone(name, dscc.id);
   }
 
+  // ─── Community Fund Roles ─────────────────────────────────────────
+
+  const communityFundResources = [
+    'community_zones', 'contribution_plans', 'care_contributions',
+    'care_partner_cards', 'card_verification_logs',
+    'pet_census', 'transparency_reports', 'pet_smart_solution',
+    'community_fund_dashboard', 'payments', 'analytics', 'sms_logs',
+  ];
+  const communityFundAdminActions = ['create', 'read', 'update', 'delete', 'publish', 'manage'];
+  const communityFundAdminPermissions = allPermissions.filter(
+    (p) => communityFundResources.includes(p.resource) && communityFundAdminActions.includes(p.action),
+  );
+  const communityFundAdminRole = await prisma.role.upsert({
+    where: { name: 'community_fund_admin' },
+    update: {},
+    create: {
+      name: 'community_fund_admin',
+      description: 'Community Pet Care fund — full management of zones, contributions, cards, census, and transparency reports',
+      rolePermissions: { create: communityFundAdminPermissions.map((p) => ({ permissionId: p.id })) },
+    },
+  });
+
+  const communityFundViewerPermissions = allPermissions.filter(
+    (p) => communityFundResources.includes(p.resource) && p.action === 'read',
+  );
+  const communityFundViewerRole = await prisma.role.upsert({
+    where: { name: 'community_fund_viewer' },
+    update: {},
+    create: {
+      name: 'community_fund_viewer',
+      description: 'Community Pet Care fund — read-only dashboard access',
+      rolePermissions: { create: communityFundViewerPermissions.map((p) => ({ permissionId: p.id })) },
+    },
+  });
+
+  void communityFundAdminRole; void communityFundViewerRole;
+
   // ─── Vaccine Catalog ──────────────────────────────────────────────
 
   console.log('Seeding vaccine catalog...');
@@ -227,6 +273,134 @@ async function main(): Promise<void> {
   for (const v of vaccines) {
     const existing = await prisma.vaccineCatalog.findFirst({ where: { name: v.name } });
     if (!existing) await prisma.vaccineCatalog.create({ data: v });
+  }
+
+  // ─── Contribution Plan ────────────────────────────────────────────
+
+  console.log('Seeding contribution plan...');
+  const LEGAL_DISCLAIMER = [
+    'This Care Partner Card is a contribution recognition and community service benefit card only.',
+    'It does not represent ownership, equity, profit-sharing, or any form of investment in BPA or any clinic.',
+    'Discounts on products, medicines, food, accessories, or any third-party costs are not guaranteed.',
+    'Benefits are subject to availability and BPA policy at the time of service.',
+  ].join(' ');
+
+  await prisma.contributionPlan.upsert({
+    where: { slug: 'standard-care-partner-3000' },
+    update: {},
+    create: {
+      title: 'Standard Care Partner',
+      slug: 'standard-care-partner-3000',
+      contributionType: 'care_partner',
+      amountBdt: 3000,
+      currency: 'BDT',
+      description: 'Contribute ৳3,000 to support the establishment of BPA Community 24/7 Pet Clinics in Dhaka. Your contribution helps provide accessible veterinary care for all pets regardless of owner income.',
+      benefitsSummaryJson: [
+        'Priority service access at BPA Community Pet Clinics (subject to availability)',
+        'Digital Care Partner Card with QR verification',
+        'Recognition as a founding Care Partner of BPA Community Pet Clinics',
+        'Annual transparency report on fund utilisation',
+      ],
+      legalDisclaimerText: LEGAL_DISCLAIMER,
+      isActive: true,
+      sortOrder: 0,
+    },
+  });
+
+  // ─── Community Zones (8 Dhaka Zones) ─────────────────────────────
+
+  console.log('Seeding community zones...');
+  const communityZones = [
+    {
+      name: 'Zone 1 – Uttara & Turag',
+      slug: 'zone-1-uttara-turag',
+      description: 'Covering Uttara, Turag, and surrounding areas of northern Dhaka.',
+      city: 'Dhaka', district: 'Dhaka District', division: 'Dhaka',
+      sortOrder: 1,
+    },
+    {
+      name: 'Zone 2 – Mirpur & Pallabi',
+      slug: 'zone-2-mirpur-pallabi',
+      description: 'Covering Mirpur, Pallabi, Kafrul, and Shah Ali areas.',
+      city: 'Dhaka', district: 'Dhaka District', division: 'Dhaka',
+      sortOrder: 2,
+    },
+    {
+      name: 'Zone 3 – Mohammadpur & Adabor',
+      slug: 'zone-3-mohammadpur-adabor',
+      description: 'Covering Mohammadpur, Adabor, Sher-e-Bangla Nagar, and Shyamoli areas.',
+      city: 'Dhaka', district: 'Dhaka District', division: 'Dhaka',
+      sortOrder: 3,
+    },
+    {
+      name: 'Zone 4 – Gulshan & Banani',
+      slug: 'zone-4-gulshan-banani',
+      description: 'Covering Gulshan, Banani, Baridhara, and Niketon areas.',
+      city: 'Dhaka', district: 'Dhaka District', division: 'Dhaka',
+      sortOrder: 4,
+    },
+    {
+      name: 'Zone 5 – Dhanmondi & Kalabagan',
+      slug: 'zone-5-dhanmondi-kalabagan',
+      description: 'Covering Dhanmondi, Kalabagan, Hazaribagh, and Lalbagh areas.',
+      city: 'Dhaka', district: 'Dhaka District', division: 'Dhaka',
+      sortOrder: 5,
+    },
+    {
+      name: 'Zone 6 – Rampura & Badda',
+      slug: 'zone-6-rampura-badda',
+      description: 'Covering Rampura, Badda, Khilgaon, and Bashabo areas.',
+      city: 'Dhaka', district: 'Dhaka District', division: 'Dhaka',
+      sortOrder: 6,
+    },
+    {
+      name: 'Zone 7 – Motijheel & Wari',
+      slug: 'zone-7-motijheel-wari',
+      description: 'Covering Motijheel, Wari, Sutrapur, and Kotwali areas.',
+      city: 'Dhaka', district: 'Dhaka District', division: 'Dhaka',
+      sortOrder: 7,
+    },
+    {
+      name: 'Zone 8 – Demra & Shyampur',
+      slug: 'zone-8-demra-shyampur',
+      description: 'Covering Demra, Shyampur, Kadamtali, and Jatrabari areas.',
+      city: 'Dhaka', district: 'Dhaka District', division: 'Dhaka',
+      sortOrder: 8,
+    },
+  ];
+
+  for (const zone of communityZones) {
+    await prisma.communityZone.upsert({
+      where: { slug: zone.slug },
+      update: {},
+      create: {
+        ...zone,
+        targetContributors: 10000,
+        currentContributors: 0,
+        targetAmountBdt: 30000000, // 10,000 × ৳3,000
+        currentAmountBdt: 0,
+        status: 'active',
+        isActive: true,
+      },
+    });
+  }
+
+  // ─── Pet Smart Solution Placeholder Settings ──────────────────────
+
+  console.log('Seeding Pet Smart Solution placeholder settings...');
+  const pssSettings = [
+    { settingKey: 'PSS_API_BASE_URL', description: 'Future Pet Smart Solution API base URL', isSecret: false },
+    { settingKey: 'PSS_API_KEY', description: 'Pet Smart Solution API key (keep secret)', isSecret: true },
+    { settingKey: 'PSS_SYNC_ENABLED', description: 'Master toggle — set to true to enable sync', isSecret: false },
+    { settingKey: 'PSS_SYNC_ENTITIES', description: 'Comma-separated entity types to sync (e.g. care_partner_card)', isSecret: false },
+    { settingKey: 'PSS_WEBHOOK_SECRET', description: 'Incoming webhook signature secret from Pet Smart Solution', isSecret: true },
+  ];
+  for (const s of pssSettings) {
+    await prisma.petSmartSyncSetting.upsert({
+      where: { settingKey: s.settingKey },
+      update: {},
+      create: { settingKey: s.settingKey, description: s.description, isSecret: s.isSecret, isActive: false, status: 'not_configured' },
+    });
   }
 
   console.log('─────────────────────────────────────────────');

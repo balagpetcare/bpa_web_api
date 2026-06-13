@@ -4,6 +4,7 @@ import { AppError } from '../../utils/AppError';
 import { getEPS, isEPSConfigured } from '../../services/eps.service';
 import * as repo from './payments.repository';
 import { settleCampaignPayment, cancelCampaignPayment } from '../campaign-registrations/campaign-registrations.service';
+import { issueCarePartnerCardOnPayment } from '../care-partner-cards/care-partner-cards.service';
 
 // ─── Verify & settle payment ──────────────────────────────────────
 
@@ -53,6 +54,10 @@ async function activateLinkedEntities(payment: { id: string; entityType: string 
     await settleCampaignPayment(payment.id);
     return;
   }
+  if (payment.entityType === 'care_partner') {
+    await issueCarePartnerCardOnPayment(payment.id);
+    return;
+  }
   // Default: event registrations
   await prisma.eventRegistration.updateMany({
     where: { paymentId: payment.id, status: 'pending' },
@@ -63,7 +68,19 @@ async function activateLinkedEntities(payment: { id: string; entityType: string 
 async function deactivateLinkedEntities(payment: { id: string; entityType: string | null }): Promise<void> {
   if (payment.entityType === 'campaign') {
     await cancelCampaignPayment(payment.id);
+    return;
   }
+  if (payment.entityType === 'care_partner') {
+    await cancelCarePartnerContribution(payment.id);
+    return;
+  }
+}
+
+async function cancelCarePartnerContribution(paymentId: string): Promise<void> {
+  await prisma.careContribution.updateMany({
+    where: { paymentId, status: 'pending_payment' },
+    data: { status: 'cancelled' },
+  });
 }
 
 // ─── Admin: force sync ────────────────────────────────────────────

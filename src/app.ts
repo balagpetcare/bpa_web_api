@@ -36,6 +36,14 @@ import campaignAnalyticsRouter from './modules/analytics/campaign-analytics.rout
 import campaignsPublicRouter from './modules/campaigns/campaigns-public.router';
 import petsPublicRouter from './modules/pets/pets-public.router';
 import { homepageAdminRouter, homepagePublicRouter } from './modules/homepage/homepage.router';
+import { communityZonesAdminRouter, communityZonesPublicRouter } from './modules/community-zones/community-zones.router';
+import { contributionPlansAdminRouter, contributionPlansPublicRouter } from './modules/contribution-plans/contribution-plans.router';
+import { careContributionsAdminRouter, careContributionsPublicRouter } from './modules/care-contributions/care-contributions.router';
+import { carePartnerCardsAdminRouter, carePartnerCardsPublicRouter } from './modules/care-partner-cards/care-partner-cards.router';
+import { petCensusAdminRouter, petCensusPublicRouter } from './modules/pet-census/pet-census.router';
+import { transparencyReportsAdminRouter, transparencyReportsPublicRouter } from './modules/transparency-reports/transparency-reports.router';
+import { petSmartSolutionAdminRouter } from './modules/pet-smart-solution/pet-smart-solution.router';
+import { communityFundAdminRouter, communityFundPublicRouter } from './modules/community-fund/community-fund.router';
 
 const app = express();
 
@@ -122,6 +130,23 @@ app.use(`${v1}/public/pets`, petsPublicRouter);
 app.use(`${v1}/admin/analytics/campaigns`, campaignAnalyticsRouter);
 app.use(`${v1}/admin/homepage`, homepageAdminRouter);
 app.use(`${v1}/homepage`, homepagePublicRouter);
+
+// ─── Community Pet Care (Phase 3) ───────────────────────────────
+app.use(`${v1}/admin/community-zones`, communityZonesAdminRouter);
+app.use(`${v1}/public/community-zones`, communityZonesPublicRouter);
+app.use(`${v1}/admin/contribution-plans`, contributionPlansAdminRouter);
+app.use(`${v1}/public/contribution-plans`, contributionPlansPublicRouter);
+app.use(`${v1}/admin/care-contributions`, careContributionsAdminRouter);
+app.use(`${v1}/public/care-contributions`, careContributionsPublicRouter);
+app.use(`${v1}/admin/care-partner-cards`, carePartnerCardsAdminRouter);
+app.use(`${v1}/public/care-partner-cards`, carePartnerCardsPublicRouter);
+app.use(`${v1}/admin/pet-census`, petCensusAdminRouter);
+app.use(`${v1}/public/pet-census`, petCensusPublicRouter);
+app.use(`${v1}/admin/transparency-reports`, transparencyReportsAdminRouter);
+app.use(`${v1}/public/transparency-reports`, transparencyReportsPublicRouter);
+app.use(`${v1}/admin/pet-smart-solution`, petSmartSolutionAdminRouter);
+app.use(`${v1}/admin/community-fund`, communityFundAdminRouter);
+app.use(`${v1}/public/community-fund`, communityFundPublicRouter);
 
 // ─── Error Handling ─────────────────────────────────────────────
 app.use(notFound);

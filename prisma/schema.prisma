@@ -108,6 +108,11 @@ enum HomepageSectionType {
   cta
   partners
   custom
+  community_pet_care
+  zone_progress
+  pet_census
+  transparency
+  pet_smart_solution
 }
 
 enum HomepageSectionSource {
@@ -155,6 +160,55 @@ enum WaitlistStatus {
   promoted
   expired
   cancelled
+}
+
+// ─── Community Pet Care Enums ────────────────────────────────────
+
+enum CommunityZoneStatus {
+  active
+  inactive
+  coming_soon
+}
+
+enum ContributionType {
+  care_partner
+}
+
+enum ContributionStatus {
+  pending_payment
+  paid
+  refunded
+  cancelled
+}
+
+enum CarePartnerCardStatus {
+  pending
+  active
+  expired
+  revoked
+}
+
+enum PetCensusStatus {
+  new
+  contacted
+  converted
+  submitted
+  verified
+  duplicate
+  archived
+}
+
+enum TransparencyReportStatus {
+  draft
+  published
+  archived
+}
+
+enum PetSmartSyncStatus {
+  pending
+  success
+  failed
+  skipped
 }
 
 // ─── Identity & Auth ────────────────────────────────────────────
@@ -452,6 +506,7 @@ model Payment {
   memberships           Membership[]
   eventRegistrations    EventRegistration[]
   campaignRegistrations CampaignRegistration[]
+  careContributions     CareContribution[]
   entityType            String?                @map("entity_type") @db.VarChar(30)
   entityId              String?                @map("entity_id") @db.Uuid
 
@@ -504,8 +559,10 @@ model MediaFile {
   heroDesktopImages    HeroSlide[]           @relation("HeroDesktopImage")
   heroMobileImages     HeroSlide[]           @relation("HeroMobileImage")
   heroVideos           HeroSlide[]           @relation("HeroVideo")
-  partnerLogos         Partner[]             @relation("PartnerLogo")
-  footerLogos          FooterConfig[]        @relation("FooterLogo")
+  partnerLogos              Partner[]             @relation("PartnerLogo")
+  footerLogos               FooterConfig[]        @relation("FooterLogo")
+  communityZoneCovers       CommunityZone[]       @relation("CommunityZoneCover")
+  transparencyReportCovers  TransparencyReport[]  @relation("TransparencyReportCover")
 
   @@index([mimeType])
   @@map("media_files")
@@ -1330,4 +1387,232 @@ model VaccinationRecord {
   @@index([petId, administeredAt])
   @@index([campaignId])
   @@map("vaccination_records")
+}
+
+// ─── Community Pet Care ──────────────────────────────────────────
+
+model CommunityZone {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String              @db.VarChar(120)
+  slug                String              @unique @db.VarChar(140)
+  description         String?             @db.Text
+  city                String              @default("Dhaka") @db.VarChar(120)
+  district            String              @default("Dhaka District") @db.VarChar(120)
+  division            String              @default("Dhaka") @db.VarChar(120)
+  targetContributors  Int                 @default(10000) @map("target_contributors")
+  currentContributors Int                 @default(0) @map("current_contributors")
+  targetAmountBdt     Decimal             @default(30000000) @map("target_amount_bdt") @db.Decimal(14, 2)
+  currentAmountBdt    Decimal             @default(0) @map("current_amount_bdt") @db.Decimal(14, 2)
+  clinicAddress       String?             @map("clinic_address") @db.Text
+  clinicPhone         String?             @map("clinic_phone") @db.VarChar(20)
+  mapEmbedUrl         String?             @map("map_embed_url") @db.Text
+  latitude            Decimal?            @db.Decimal(9, 6)
+  longitude           Decimal?            @db.Decimal(9, 6)
+  coverImageId        String?             @map("cover_image_id") @db.Uuid
+  sortOrder           Int                 @default(0) @map("sort_order")
+  status              CommunityZoneStatus @default(active)
+  isActive            Boolean             @default(true) @map("is_active")
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  coverImage        MediaFile?           @relation("CommunityZoneCover", fields: [coverImageId], references: [id], onDelete: SetNull)
+  contributions     CareContribution[]
+  cards             CarePartnerCard[]
+  censusSubmissions PetCensusSubmission[]
+
+  @@index([status, isActive, sortOrder])
+  @@map("community_zones")
+}
+
+model ContributionPlan {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title               String           @db.VarChar(120)
+  slug                String           @unique @db.VarChar(140)
+  contributionType    ContributionType @default(care_partner) @map("contribution_type")
+  amountBdt           Decimal          @default(3000) @map("amount_bdt") @db.Decimal(10, 2)
+  currency            String           @default("BDT") @db.VarChar(3)
+  description         String?          @db.Text
+  benefitsSummaryJson Json?            @map("benefits_summary_json")
+  legalDisclaimerText String?          @map("legal_disclaimer_text") @db.Text
+  isActive            Boolean          @default(true) @map("is_active")
+  sortOrder           Int              @default(0) @map("sort_order")
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+
+  contributions CareContribution[]
+
+  @@index([isActive, sortOrder])
+  @@map("contribution_plans")
+}
+
+model CareContribution {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contributionNumber String             @unique @map("contribution_number") @db.VarChar(30)
+  planId             String             @map("plan_id") @db.Uuid
+  zoneId             String             @map("zone_id") @db.Uuid
+  paymentId          String?            @unique @map("payment_id") @db.Uuid
+  contributorName    String             @map("contributor_name") @db.VarChar(120)
+  contributorMobile  String             @map("contributor_mobile") @db.VarChar(20)
+  contributorEmail   String?            @map("contributor_email") @db.VarChar(255)
+  contributorAddress String?            @map("contributor_address") @db.Text
+  amountBdt          Decimal            @map("amount_bdt") @db.Decimal(10, 2)
+  currency           String             @default("BDT") @db.VarChar(3)
+  status             ContributionStatus @default(pending_payment)
+  isAnonymous        Boolean            @default(false) @map("is_anonymous")
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+
+  plan    ContributionPlan @relation(fields: [planId], references: [id])
+  zone    CommunityZone    @relation(fields: [zoneId], references: [id])
+  payment Payment?         @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  card    CarePartnerCard?
+
+  @@index([zoneId, status])
+  @@index([status, createdAt])
+  @@index([contributorMobile])
+  @@map("care_contributions")
+}
+
+model CarePartnerCard {
+  id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cardNumber              String                @unique @map("card_number") @db.VarChar(30)
+  contributionId          String                @unique @map("contribution_id") @db.Uuid
+  zoneId                  String                @map("zone_id") @db.Uuid
+  qrToken                 String                @unique @map("qr_token") @db.VarChar(64)
+  status                  CarePartnerCardStatus @default(pending)
+  issuedAt                DateTime?             @map("issued_at") @db.Timestamptz
+  expiresAt               DateTime?             @map("expires_at") @db.Date
+  revokedAt               DateTime?             @map("revoked_at") @db.Timestamptz
+  revocationReason        String?               @map("revocation_reason") @db.Text
+  legalDisclaimerSnapshot String?               @map("legal_disclaimer_snapshot") @db.Text
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime              @updatedAt @map("updated_at") @db.Timestamptz
+
+  contribution     CareContribution      @relation(fields: [contributionId], references: [id])
+  zone             CommunityZone         @relation(fields: [zoneId], references: [id])
+  verificationLogs CardVerificationLog[]
+
+  @@index([status])
+  @@index([zoneId, status])
+  @@map("care_partner_cards")
+}
+
+// Public card scan log — no auth user FK (unlike QRScanLog which requires scannedById)
+model CardVerificationLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cardId     String   @map("card_id") @db.Uuid
+  qrToken    String   @map("qr_token") @db.VarChar(64)
+  scanResult String   @map("scan_result") @db.VarChar(30)
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  card CarePartnerCard @relation(fields: [cardId], references: [id])
+
+  @@index([cardId])
+  @@index([createdAt])
+  @@map("card_verification_logs")
+}
+
+model PetCensusSubmission {
+  id                      String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerName               String          @map("owner_name") @db.VarChar(120)
+  ownerMobile             String          @map("owner_mobile") @db.VarChar(20)
+  ownerEmail              String?         @map("owner_email") @db.VarChar(255)
+  ownerAddress            String?         @map("owner_address") @db.Text
+  zoneId                  String?         @map("zone_id") @db.Uuid
+  areaText                String?         @map("area_text") @db.VarChar(255)
+  petType                 String?         @map("pet_type") @db.VarChar(20)
+  petCount                Int             @default(0) @map("pet_count")
+  breed                   String?         @db.VarChar(120)
+  petCountDog             Int             @default(0) @map("pet_count_dog")
+  petCountCat             Int             @default(0) @map("pet_count_cat")
+  petCountOther           Int             @default(0) @map("pet_count_other")
+  petsJson                Json?           @map("pets_json")
+  isVaccinationInterested Boolean         @default(false) @map("is_vaccination_interested")
+  isClinicInterested      Boolean         @default(false) @map("is_clinic_interested")
+  isPetShopInterested     Boolean         @default(false) @map("is_pet_shop_interested")
+  isCarePartnerInterested Boolean         @default(false) @map("is_care_partner_interested")
+  hasConsented            Boolean         @default(false) @map("has_consented")
+  notes                   String?         @db.Text
+  adminNote               String?         @map("admin_note") @db.Text
+  source                  String          @default("PET_CENSUS_2026") @db.VarChar(80)
+  sourceRoute             String?         @map("source_route") @db.VarChar(80)
+  status                  PetCensusStatus @default(new)
+  ipAddress               String?         @map("ip_address") @db.VarChar(45)
+  userAgent               String?         @map("user_agent") @db.Text
+  submittedAt             DateTime        @default(now()) @map("submitted_at") @db.Timestamptz
+  updatedAt               DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  zone CommunityZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+
+  @@index([ownerMobile])
+  @@index([status, submittedAt])
+  @@index([petType])
+  @@index([zoneId])
+  @@map("pet_census_submissions")
+}
+
+model TransparencyReport {
+  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String                   @db.VarChar(255)
+  slug              String                   @unique @db.VarChar(280)
+  reportType        String                   @default("quarterly") @map("report_type") @db.VarChar(60)
+  periodStart       DateTime                 @map("period_start") @db.Date
+  periodEnd         DateTime                 @map("period_end") @db.Date
+  totalCollectedBdt Decimal                  @default(0) @map("total_collected_bdt") @db.Decimal(14, 2)
+  totalSpentBdt     Decimal                  @default(0) @map("total_spent_bdt") @db.Decimal(14, 2)
+  balanceBdt        Decimal                  @default(0) @map("balance_bdt") @db.Decimal(14, 2)
+  breakdownJson     Json?                    @map("breakdown_json")
+  summaryMd         String?                  @map("summary_md") @db.Text
+  bodyMd            String?                  @map("body_md") @db.Text
+  attachmentUrl     String?                  @map("attachment_url") @db.Text
+  coverImageId      String?                  @map("cover_image_id") @db.Uuid
+  status            TransparencyReportStatus @default(draft)
+  publishedAt       DateTime?                @map("published_at") @db.Timestamptz
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz
+
+  coverImage MediaFile? @relation("TransparencyReportCover", fields: [coverImageId], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt])
+  @@map("transparency_reports")
+}
+
+model PetSmartSyncSetting {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  settingKey   String    @unique @map("setting_key") @db.VarChar(80)
+  settingValue String?   @map("setting_value") @db.Text
+  description  String?   @db.Text
+  isSecret     Boolean   @default(false) @map("is_secret")
+  isActive     Boolean   @default(false) @map("is_active")
+  lastSyncAt   DateTime? @map("last_sync_at") @db.Timestamptz
+  status       String    @default("not_configured") @db.VarChar(30)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  syncLogs PetSmartSyncLog[]
+
+  @@map("pet_smart_sync_settings")
+}
+
+model PetSmartSyncLog {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  settingId       String?            @map("setting_id") @db.Uuid
+  entityType      String             @map("entity_type") @db.VarChar(60)
+  entityId        String             @map("entity_id") @db.Uuid
+  syncType        String             @map("sync_type") @db.VarChar(60)
+  status          PetSmartSyncStatus @default(pending)
+  requestSummary  String?            @map("request_summary") @db.Text
+  responseSummary String?            @map("response_summary") @db.Text
+  errorMessage    String?            @map("error_message") @db.Text
+  metadata        Json?
+  startedAt       DateTime           @default(now()) @map("started_at") @db.Timestamptz
+  finishedAt      DateTime?          @map("finished_at") @db.Timestamptz
+
+  setting PetSmartSyncSetting? @relation(fields: [settingId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([status, startedAt])
+  @@map("pet_smart_sync_logs")
 }

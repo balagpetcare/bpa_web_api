@@ -47,6 +47,9 @@ const envSchema = z.object({
   // HMAC secret for QR token generation — keep stable per campaign lifecycle
   QR_SECRET: z.string().default('bpa-qr-secret-change-in-production-min32chars!!'),
 
+  // Separate HMAC secret for Care Partner Card QR tokens — must differ from QR_SECRET
+  CARE_CARD_QR_SECRET: z.string().default('bpa-care-card-qr-secret-change-in-production!!'),
+
   // ─── Media / File Storage ────────────────────────────────────────────────
   // STORAGE_DRIVER=s3    → S3-compatible (MinIO, AWS S3, DO Spaces, Wasabi, R2)
   // STORAGE_DRIVER=local → local disk ./uploads/ (development fallback)
@@ -82,5 +85,11 @@ export const corsOrigins = config.CORS_ORIGINS.split(',').map((o) => o.trim());
 const QR_SECRET_DEFAULT = 'bpa-qr-secret-change-in-production-min32chars!!';
 if (config.NODE_ENV === 'production' && config.QR_SECRET === QR_SECRET_DEFAULT) {
   console.error('[SECURITY] QR_SECRET is using the insecure default value. Set QR_SECRET in environment before deploying to production!');
+  process.exit(1);
+}
+
+const CARE_CARD_QR_SECRET_DEFAULT = 'bpa-care-card-qr-secret-change-in-production!!';
+if (config.NODE_ENV === 'production' && config.CARE_CARD_QR_SECRET === CARE_CARD_QR_SECRET_DEFAULT) {
+  console.error('[SECURITY] CARE_CARD_QR_SECRET is using the insecure default value. Set CARE_CARD_QR_SECRET in environment before deploying to production!');
   process.exit(1);
 }
