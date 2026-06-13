@@ -1,0 +1,97 @@
+import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+import { validate } from '../../middlewares/validate';
+import { publicFormLimiter } from '../../middlewares/rateLimiter';
+import { sendCreated } from '../../utils/response';
+import { AppError } from '../../utils/AppError';
+import { getEPS, generateMerchantTxnId, getMembershipFee, isEPSConfigured } from '../../services/eps.service';
+import { createPayment, updatePaymentEpsTxnId } from '../payments/payments.repository';
+import { config } from '../../config';
+
+const router = Router();
+
+const initiateMembershipSchema = z.object({
+  name: z.string().min(1).max(120),
+  email: z.string().email().max(255),
+  phone: z.string().max(20).optional(),
+  membershipType: z.enum(['regular', 'student', 'corporate']),
+  message: z.string().max(2000).optional(),
+});
+
+type InitiateMembershipDto = z.infer<typeof initiateMembershipSchema>;
+
+router.post(
+  '/public/initiate',
+  publicFormLimiter,
+  validate(initiateMembershipSchema),
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const dto = req.body as InitiateMembershipDto;
+
+      if (!isEPSConfigured()) {
+        throw AppError.badRequest('Online payment is not available at this time. Please contact us directly.');
+      }
+
+      const amount = getMembershipFee(dto.membershipType);
+      const merchantTxnId = generateMerchantTxnId();
+      const phone = dto.phone?.replace(/\D/g, '') || '01000000000';
+      const normalizedPhone = phone.startsWith('880') ? phone.slice(3) : phone;
+      const customerPhone = normalizedPhone.startsWith('0') ? normalizedPhone : `0${normalizedPhone}`;
+
+      // Create pending payment record
+      const payment = await createPayment({
+        gateway: 'eps',
+        merchantTxnId,
+        amount,
+        currency: 'BDT',
+        purpose: 'membership',
+        payload: {
+          type: 'membership',
+          applicantName: dto.name,
+          applicantEmail: dto.email,
+          applicantPhone: dto.phone ?? null,
+          membershipType: dto.membershipType,
+          message: dto.message ?? null,
+        },
+      });
+
+      // Initiate EPS payment
+      const eps = getEPS();
+      const backendBase = config.BACKEND_URL;
+
+      const epsResult = await eps.initializePayment({
+        customerOrderId: payment.id,
+        merchantTransactionId: merchantTxnId,
+        totalAmount: amount,
+        successUrl: `${backendBase}/api/v1/payment/callback/success`,
+        failUrl:    `${backendBase}/api/v1/payment/callback/fail`,
+        cancelUrl:  `${backendBase}/api/v1/payment/callback/cancel`,
+        customerName:     dto.name,
+        customerEmail:    dto.email,
+        customerPhone:    customerPhone,
+        customerAddress:  'Bangladesh',
+        customerCity:     'Dhaka',
+        customerState:    'Dhaka Division',
+        customerPostcode: '1000',
+        productName:      `BPA ${dto.membershipType.charAt(0).toUpperCase() + dto.membershipType.slice(1)} Membership`,
+        valueA: payment.id,
+        valueB: 'membership',
+      });
+
+      // Store EPS transaction ID
+      await updatePaymentEpsTxnId(payment.id, epsResult.TransactionId);
+
+      sendCreated(res, {
+        paymentId: payment.id,
+        merchantTxnId,
+        redirectUrl: epsResult.RedirectURL,
+        amount,
+        currency: 'BDT',
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+export default router;

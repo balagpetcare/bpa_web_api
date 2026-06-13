@@ -1,0 +1,1 @@
+-- Phase 4: Certificates, QR Scan Logs, Analytics extensions

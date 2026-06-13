@@ -1,0 +1,1333 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────────
+
+enum NewsStatus {
+  draft
+  published
+  archived
+}
+
+enum EventStatus {
+  draft
+  published
+  cancelled
+}
+
+enum RegistrationStatus {
+  pending
+  confirmed
+  cancelled
+}
+
+enum VolunteerStatus {
+  pending
+  approved
+  rejected
+}
+
+enum MembershipType {
+  individual
+  family
+  corporate
+}
+
+enum MembershipStatus {
+  active
+  expired
+  cancelled
+}
+
+enum PaymentGateway {
+  eps
+}
+
+enum PaymentStatus {
+  pending
+  success
+  failed
+  refunded
+}
+
+enum ContactStatus {
+  unread
+  read
+  replied
+}
+
+enum SmsStatus {
+  queued
+  sent
+  delivered
+  failed
+  undelivered
+}
+
+enum EmailStatus {
+  queued
+  sent
+  delivered
+  failed
+  bounced
+  spam
+}
+
+enum AuditAction {
+  create
+  update
+  delete
+  publish
+  unpublish
+  approve
+  reject
+  upload
+}
+
+enum HomepageStatus {
+  draft
+  published
+  archived
+}
+
+enum HomepageSectionType {
+  hero
+  stats
+  mission
+  campaigns
+  news
+  events
+  vision
+  committee
+  cta
+  partners
+  custom
+}
+
+enum HomepageSectionSource {
+  manual
+  automatic
+  static
+}
+
+enum HeroSlideStatus {
+  draft
+  published
+  archived
+}
+
+enum HeroSlideMediaType {
+  image
+  video
+}
+
+enum HeroSlideOverlayPosition {
+  left
+  center
+  right
+}
+
+enum HomepageCtaType {
+  none
+  internal
+  external
+}
+
+enum CampaignRegistrationStatus {
+  pending_payment
+  paid
+  checked_in
+  vaccinated
+  certificate_issued
+  completed
+  no_show
+  cancelled
+}
+
+enum WaitlistStatus {
+  waiting
+  promoted
+  expired
+  cancelled
+}
+
+// ─── Identity & Auth ────────────────────────────────────────────
+
+model User {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String    @db.VarChar(120)
+  email               String    @unique @db.VarChar(255)
+  passwordHash        String    @map("password_hash") @db.Text
+  phone               String?   @db.VarChar(20)
+  isActive            Boolean   @default(true) @map("is_active")
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz
+
+  userRoles              UserRole[]
+  news                   News[]
+  mediaFiles             MediaFile[]
+  volunteersReviewed     Volunteer[]             @relation("ReviewedBy")
+  contactsReplied        ContactSubmission[]     @relation("RepliedBy")
+  seoUpdates             SeoMetadata[]
+  refreshTokens          RefreshToken[]
+  members                Member[]
+  campaignsCreated       Campaign[]              @relation("CampaignCreatedBy")
+  doctorProfile          Doctor?
+  campaignVolunteers     CampaignVolunteer[]
+  petOwners              PetOwner[]
+  volunteerCoverageAreas VolunteerCoverageArea[]
+  qrScanLogs             QRScanLog[]
+  certificatesIssued     Certificate[]           @relation("CertificateIssuedBy")
+  homepageUpdates        Homepage[]              @relation("HomepageUpdatedBy")
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique @db.VarChar(60)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  resource  String   @db.VarChar(80)
+  action    String   @db.VarChar(40)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId String @map("user_id") @db.Uuid
+  roleId String @map("role_id") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RefreshToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  token     String    @unique @db.Text
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// ─── Audit ──────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId    String?     @map("actor_id") @db.Uuid
+  actorEmail String?     @map("actor_email") @db.VarChar(255)
+  action     AuditAction
+  resource   String      @db.VarChar(80)
+  resourceId String?     @map("resource_id") @db.VarChar(255)
+  oldValues  Json?       @map("old_values")
+  newValues  Json?       @map("new_values")
+  ipAddress  String?     @map("ip_address") @db.VarChar(45)
+  userAgent  String?     @map("user_agent") @db.Text
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([resource, resourceId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─── News CMS ───────────────────────────────────────────────────
+
+model NewsCategory {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @unique @db.VarChar(100)
+  slug      String   @unique @db.VarChar(120)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  news News[]
+
+  @@map("news_categories")
+}
+
+model NewsTag {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @unique @db.VarChar(80)
+  slug      String   @unique @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  news News[]
+
+  @@map("news_tags")
+}
+
+model News {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title        String     @db.VarChar(255)
+  slug         String     @unique @db.VarChar(280)
+  excerpt      String?    @db.Text
+  body         String     @db.Text
+  coverImageId String?    @map("cover_image_id") @db.Uuid
+  authorId     String     @map("author_id") @db.Uuid
+  categoryId   String?    @map("category_id") @db.Uuid
+  status       NewsStatus @default(draft)
+  isFeatured   Boolean    @default(false) @map("is_featured")
+  publishedAt  DateTime?  @map("published_at") @db.Timestamptz
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  author     User          @relation(fields: [authorId], references: [id])
+  coverImage MediaFile?    @relation("NewsCover", fields: [coverImageId], references: [id])
+  category   NewsCategory? @relation(fields: [categoryId], references: [id])
+  tags       NewsTag[]
+
+  @@index([status, publishedAt])
+  @@index([slug])
+  @@map("news")
+}
+
+// ─── Events ─────────────────────────────────────────────────────
+
+model Event {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title        String      @db.VarChar(255)
+  slug         String      @unique @db.VarChar(280)
+  description  String?     @db.Text
+  coverImageId String?     @map("cover_image_id") @db.Uuid
+  location     String?     @db.VarChar(255)
+  startsAt     DateTime    @map("starts_at") @db.Timestamptz
+  endsAt       DateTime?   @map("ends_at") @db.Timestamptz
+  capacity     Int?
+  isPaid       Boolean     @default(false) @map("is_paid")
+  fee          Decimal?    @db.Decimal(10, 2)
+  status       EventStatus @default(draft)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  coverImage    MediaFile?          @relation("EventCover", fields: [coverImageId], references: [id])
+  registrations EventRegistration[]
+
+  @@index([status, startsAt])
+  @@map("events")
+}
+
+model EventRegistration {
+  id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId   String             @map("event_id") @db.Uuid
+  userId    String?            @map("user_id") @db.Uuid
+  name      String             @db.VarChar(120)
+  email     String             @db.VarChar(255)
+  phone     String?            @db.VarChar(20)
+  paymentId String?            @map("payment_id") @db.Uuid
+  status    RegistrationStatus @default(pending)
+  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz
+
+  event   Event    @relation(fields: [eventId], references: [id])
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@map("event_registrations")
+}
+
+// ─── Committee ──────────────────────────────────────────────────
+
+model CommitteeMember {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(120)
+  designation String   @db.VarChar(120)
+  bio         String?  @db.Text
+  photoId     String?  @map("photo_id") @db.Uuid
+  email       String?  @db.VarChar(255)
+  phone       String?  @db.VarChar(20)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  photo MediaFile? @relation("CommitteePhoto", fields: [photoId], references: [id])
+
+  @@index([sortOrder, isActive])
+  @@map("committee_members")
+}
+
+// ─── Community ──────────────────────────────────────────────────
+
+model Volunteer {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String          @db.VarChar(120)
+  email          String          @db.VarChar(255)
+  phone          String?         @db.VarChar(20)
+  areaOfInterest String?         @map("area_of_interest") @db.Text
+  availability   String?         @db.Text
+  message        String?         @db.Text
+  status         VolunteerStatus @default(pending)
+  reviewedById   String?         @map("reviewed_by") @db.Uuid
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  reviewedBy User? @relation("ReviewedBy", fields: [reviewedById], references: [id])
+
+  @@map("volunteers")
+}
+
+model Member {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  membershipType MembershipType @map("membership_type")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  user        User         @relation(fields: [userId], references: [id])
+  memberships Membership[]
+
+  @@map("members")
+}
+
+model Membership {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId  String           @map("member_id") @db.Uuid
+  paymentId String?          @map("payment_id") @db.Uuid
+  startsAt  DateTime         @map("starts_at") @db.Date
+  expiresAt DateTime         @map("expires_at") @db.Date
+  status    MembershipStatus @default(active)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  member  Member   @relation(fields: [memberId], references: [id])
+  payment Payment? @relation(fields: [paymentId], references: [id])
+
+  @@map("memberships")
+}
+
+// ─── Payments ───────────────────────────────────────────────────
+
+model Payment {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  gateway       PaymentGateway
+  gatewayRef    String?        @map("gateway_ref") @db.VarChar(255)
+  merchantTxnId String?        @unique @map("merchant_txn_id") @db.VarChar(40)
+  epsTxnId      String?        @map("eps_txn_id") @db.VarChar(255)
+  amount        Decimal        @db.Decimal(10, 2)
+  currency      String         @default("BDT") @db.VarChar(3)
+  status        PaymentStatus  @default(pending)
+  purpose       String         @default("general") @db.VarChar(60)
+  payload       Json?
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  memberships           Membership[]
+  eventRegistrations    EventRegistration[]
+  campaignRegistrations CampaignRegistration[]
+  entityType            String?                @map("entity_type") @db.VarChar(30)
+  entityId              String?                @map("entity_id") @db.Uuid
+
+  @@index([entityType, entityId])
+  @@map("payments")
+}
+
+// ─── Contacts ───────────────────────────────────────────────────
+
+model ContactSubmission {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String        @db.VarChar(120)
+  email       String        @db.VarChar(255)
+  phone       String?       @db.VarChar(20)
+  subject     String?       @db.VarChar(255)
+  message     String        @db.Text
+  status      ContactStatus @default(unread)
+  repliedById String?       @map("replied_by") @db.Uuid
+  repliedAt   DateTime?     @map("replied_at") @db.Timestamptz
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  repliedBy User? @relation("RepliedBy", fields: [repliedById], references: [id])
+
+  @@map("contact_submissions")
+}
+
+// ─── Media ──────────────────────────────────────────────────────
+
+model MediaFile {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  filename     String   @db.VarChar(255)
+  originalName String   @map("original_name") @db.VarChar(255)
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  sizeBytes    BigInt   @map("size_bytes")
+  url          String   @db.Text
+  altText      String?  @map("alt_text") @db.VarChar(255)
+  uploadedById String   @map("uploaded_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  uploadedBy           User                  @relation(fields: [uploadedById], references: [id])
+  newsCovers           News[]                @relation("NewsCover")
+  eventCovers          Event[]               @relation("EventCover")
+  committeePhotos      CommitteeMember[]     @relation("CommitteePhoto")
+  seoImages            SeoMetadata[]
+  petPhotos            Pet[]                 @relation("PetPhoto")
+  campaignCovers       Campaign[]            @relation("CampaignCover")
+  campaignMediaItems   CampaignMedia[]
+  homepageSectionItems HomepageSectionItem[] @relation("HomepageSectionItemMedia")
+  heroDesktopImages    HeroSlide[]           @relation("HeroDesktopImage")
+  heroMobileImages     HeroSlide[]           @relation("HeroMobileImage")
+  heroVideos           HeroSlide[]           @relation("HeroVideo")
+  partnerLogos         Partner[]             @relation("PartnerLogo")
+  footerLogos          FooterConfig[]        @relation("FooterLogo")
+
+  @@index([mimeType])
+  @@map("media_files")
+}
+
+// ─── SEO ────────────────────────────────────────────────────────
+
+model SeoMetadata {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  route         String   @unique @db.VarChar(255)
+  title         String?  @db.VarChar(255)
+  description   String?  @db.Text
+  ogTitle       String?  @map("og_title") @db.VarChar(255)
+  ogDescription String?  @map("og_description") @db.Text
+  ogImageId     String?  @map("og_image_id") @db.Uuid
+  schemaJson    Json?    @map("schema_json")
+  updatedById   String?  @map("updated_by") @db.Uuid
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  ogImage   MediaFile? @relation(fields: [ogImageId], references: [id])
+  updatedBy User?      @relation(fields: [updatedById], references: [id])
+
+  @@map("seo_metadata")
+}
+
+// â”€â”€â”€ Homepage CMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model Homepage {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locale      String         @default("en") @db.VarChar(10)
+  title       String?        @db.VarChar(255)
+  description String?        @db.Text
+  status      HomepageStatus @default(draft)
+  settings    Json?
+  publishedAt DateTime?      @map("published_at") @db.Timestamptz
+  updatedById String?        @map("updated_by") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  updatedBy User?             @relation("HomepageUpdatedBy", fields: [updatedById], references: [id])
+  sections  HomepageSection[]
+
+  @@unique([locale])
+  @@index([status])
+  @@map("homepages")
+}
+
+model HomepageSection {
+  id         String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  homepageId String                @map("homepage_id") @db.Uuid
+  type       HomepageSectionType
+  source     HomepageSectionSource @default(static)
+  title      String?               @db.VarChar(255)
+  eyebrow    String?               @db.VarChar(120)
+  subtitle   String?               @db.Text
+  body       String?               @db.Text
+  ctaType    HomepageCtaType       @default(none) @map("cta_type")
+  ctaLabel   String?               @map("cta_label") @db.VarChar(80)
+  ctaHref    String?               @map("cta_href") @db.Text
+  ctaTarget  String                @default("_self") @map("cta_target") @db.VarChar(20)
+  itemLimit  Int                   @default(3) @map("item_limit")
+  content    Json?
+  isVisible  Boolean               @default(true) @map("is_visible")
+  sortOrder  Int                   @default(0) @map("sort_order")
+  startAt    DateTime?             @map("start_at") @db.Timestamptz
+  endAt      DateTime?             @map("end_at") @db.Timestamptz
+  createdAt  DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime              @updatedAt @map("updated_at") @db.Timestamptz
+
+  homepage Homepage              @relation(fields: [homepageId], references: [id], onDelete: Cascade)
+  items    HomepageSectionItem[]
+
+  @@index([homepageId, sortOrder])
+  @@index([type, isVisible])
+  @@map("homepage_sections")
+}
+
+model HomepageSectionItem {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId  String   @map("section_id") @db.Uuid
+  entityType String?  @map("entity_type") @db.VarChar(60)
+  entityId   String?  @map("entity_id") @db.Uuid
+  title      String?  @db.VarChar(255)
+  subtitle   String?  @db.Text
+  body       String?  @db.Text
+  href       String?  @db.Text
+  mediaId    String?  @map("media_id") @db.Uuid
+  metadata   Json?
+  isVisible  Boolean  @default(true) @map("is_visible")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  section HomepageSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  media   MediaFile?      @relation("HomepageSectionItemMedia", fields: [mediaId], references: [id])
+
+  @@index([sectionId, sortOrder])
+  @@index([entityType, entityId])
+  @@map("homepage_section_items")
+}
+
+model HeroSlide {
+  id                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locale             String                   @default("en") @db.VarChar(10)
+  title              String                   @db.VarChar(120)
+  badgeText          String?                  @map("badge_text") @db.VarChar(40)
+  eyebrow            String?                  @db.VarChar(80)
+  headline           String                   @db.VarChar(180)
+  body               String?                  @db.Text
+  campaignTag        String?                  @map("campaign_tag") @db.VarChar(60)
+  status             HeroSlideStatus          @default(draft)
+  isActive           Boolean                  @default(true) @map("is_active")
+  mediaType          HeroSlideMediaType       @default(image) @map("media_type")
+  overlayPosition    HeroSlideOverlayPosition @default(left) @map("overlay_position")
+  ctaType            HomepageCtaType          @default(none) @map("cta_type")
+  ctaLabel           String?                  @map("cta_label") @db.VarChar(80)
+  ctaHref            String?                  @map("cta_href") @db.Text
+  ctaTarget          String                   @default("_self") @map("cta_target") @db.VarChar(20)
+  secondaryCtaType   HomepageCtaType          @default(none) @map("secondary_cta_type")
+  secondaryCtaLabel  String?                  @map("secondary_cta_label") @db.VarChar(80)
+  secondaryCtaHref   String?                  @map("secondary_cta_href") @db.Text
+  secondaryCtaTarget String                   @default("_self") @map("secondary_cta_target") @db.VarChar(20)
+  desktopImageId     String                   @map("desktop_image_id") @db.Uuid
+  mobileImageId      String?                  @map("mobile_image_id") @db.Uuid
+  videoId            String?                  @map("video_id") @db.Uuid
+  stats              Json?
+  countdownLabel     String?                  @map("countdown_label") @db.VarChar(80)
+  countdownTargetAt  DateTime?                @map("countdown_target_at") @db.Timestamptz
+  startAt            DateTime?                @map("start_at") @db.Timestamptz
+  endAt              DateTime?                @map("end_at") @db.Timestamptz
+  sortOrder          Int                      @default(0) @map("sort_order")
+  createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime                 @updatedAt @map("updated_at") @db.Timestamptz
+
+  desktopImage MediaFile  @relation("HeroDesktopImage", fields: [desktopImageId], references: [id])
+  mobileImage  MediaFile? @relation("HeroMobileImage", fields: [mobileImageId], references: [id])
+  video        MediaFile? @relation("HeroVideo", fields: [videoId], references: [id])
+
+  @@index([locale, status, isActive, sortOrder])
+  @@map("hero_slides")
+}
+
+model Partner {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String    @db.VarChar(160)
+  description String?   @db.Text
+  logoId      String?   @map("logo_id") @db.Uuid
+  url         String?   @db.Text
+  tier        String?   @db.VarChar(80)
+  isActive    Boolean   @default(true) @map("is_active")
+  sortOrder   Int       @default(0) @map("sort_order")
+  startAt     DateTime? @map("start_at") @db.Timestamptz
+  endAt       DateTime? @map("end_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  logo MediaFile? @relation("PartnerLogo", fields: [logoId], references: [id])
+
+  @@index([isActive, sortOrder])
+  @@map("partners")
+}
+
+model FooterConfig {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locale        String   @default("en") @db.VarChar(10)
+  brandName     String?  @map("brand_name") @db.VarChar(160)
+  brandText     String?  @map("brand_text") @db.Text
+  logoId        String?  @map("logo_id") @db.Uuid
+  email         String?  @db.VarChar(255)
+  phone         String?  @db.VarChar(40)
+  address       String?  @db.Text
+  copyrightText String?  @map("copyright_text") @db.Text
+  socialLinks   Json?    @map("social_links")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  logo   MediaFile?        @relation("FooterLogo", fields: [logoId], references: [id])
+  groups FooterLinkGroup[]
+
+  @@unique([locale])
+  @@map("footer_configs")
+}
+
+model FooterLinkGroup {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  footerId  String   @map("footer_id") @db.Uuid
+  title     String   @db.VarChar(120)
+  sortOrder Int      @default(0) @map("sort_order")
+  isVisible Boolean  @default(true) @map("is_visible")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  footer FooterConfig @relation(fields: [footerId], references: [id], onDelete: Cascade)
+  links  FooterLink[]
+
+  @@index([footerId, sortOrder])
+  @@map("footer_link_groups")
+}
+
+model FooterLink {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  label     String   @db.VarChar(120)
+  href      String   @db.Text
+  target    String   @default("_self") @db.VarChar(20)
+  sortOrder Int      @default(0) @map("sort_order")
+  isVisible Boolean  @default(true) @map("is_visible")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  group FooterLinkGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, sortOrder])
+  @@map("footer_links")
+}
+
+// ─── SMS Logs ───────────────────────────────────────────────────
+
+model SmsLog {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  to            String    @db.VarChar(20)
+  body          String    @db.Text
+  status        SmsStatus @default(queued)
+  provider      String    @db.VarChar(60)
+  providerRef   String?   @map("provider_ref") @db.VarChar(255)
+  failureReason String?   @map("failure_reason") @db.Text
+  payload       Json?
+  sentAt        DateTime? @map("sent_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("sms_logs")
+}
+
+// ─── Email Logs ─────────────────────────────────────────────────
+
+model EmailLog {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  to            String      @db.VarChar(255)
+  subject       String      @db.VarChar(500)
+  body          String?     @db.Text
+  status        EmailStatus @default(queued)
+  provider      String      @db.VarChar(60)
+  providerRef   String?     @map("provider_ref") @db.VarChar(255)
+  failureReason String?     @map("failure_reason") @db.Text
+  payload       Json?
+  sentAt        DateTime?   @map("sent_at") @db.Timestamptz
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("email_logs")
+}
+
+// ─── Campaign Management Enums ─────────────────────────────────────
+
+enum CampaignType {
+  vaccination
+  deworming
+  microchip
+  health_camp
+  spay_neuter
+}
+
+enum CampaignStatus {
+  draft
+  published
+  registration_open
+  registration_closed
+  completed
+  cancelled
+}
+
+enum CampaignMediaRole {
+  hero
+  thumbnail
+  mobile_banner
+  gallery
+}
+
+enum PetType {
+  dog
+  cat
+  bird
+  rabbit
+  other
+}
+
+enum PetGender {
+  male
+  female
+  unknown
+}
+
+// ─── Location Hierarchy ────────────────────────────────────────────
+
+model Country {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(120)
+  code      String   @unique @db.VarChar(10)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  divisions Division[]
+
+  @@map("countries")
+}
+
+model Division {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(120)
+  countryId String   @map("country_id") @db.Uuid
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  country   Country    @relation(fields: [countryId], references: [id])
+  districts District[]
+
+  @@unique([name, countryId])
+  @@index([countryId])
+  @@map("divisions")
+}
+
+model District {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String   @db.VarChar(120)
+  divisionId String   @map("division_id") @db.Uuid
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  division         Division          @relation(fields: [divisionId], references: [id])
+  cityCorporations CityCorporation[]
+
+  @@unique([name, divisionId])
+  @@index([divisionId])
+  @@map("districts")
+}
+
+model CityCorporation {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String   @db.VarChar(120)
+  districtId String   @map("district_id") @db.Uuid
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  district District @relation(fields: [districtId], references: [id])
+  zones    Zone[]
+
+  @@unique([name, districtId])
+  @@index([districtId])
+  @@map("city_corporations")
+}
+
+model Zone {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String   @db.VarChar(120)
+  cityCorporationId String   @map("city_corporation_id") @db.Uuid
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  cityCorporation        CityCorporation         @relation(fields: [cityCorporationId], references: [id])
+  venues                 Venue[]
+  volunteerCoverageAreas VolunteerCoverageArea[]
+
+  @@unique([name, cityCorporationId])
+  @@index([cityCorporationId])
+  @@map("zones")
+}
+
+model Venue {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String   @db.VarChar(255)
+  address       String   @db.Text
+  googleMapsUrl String?  @map("google_maps_url") @db.Text
+  latitude      Decimal? @db.Decimal(9, 6)
+  longitude     Decimal? @db.Decimal(9, 6)
+  zoneId        String   @map("zone_id") @db.Uuid
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  zone             Zone              @relation(fields: [zoneId], references: [id])
+  campaignSessions CampaignSession[]
+
+  @@unique([name, zoneId])
+  @@index([zoneId])
+  @@index([name])
+  @@map("venues")
+}
+
+// ─── Vaccine Catalog ──────────────────────────────────────────────
+
+model VaccineCatalog {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String   @db.VarChar(120)
+  description          String?  @db.Text
+  species              String   @default("all") @db.VarChar(20)
+  standardIntervalDays Int?     @map("standard_interval_days")
+  manufacturer         String?  @db.VarChar(120)
+  isActive             Boolean  @default(true) @map("is_active")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaignServices CampaignService[]
+
+  @@map("vaccine_catalog")
+}
+
+// ─── Certificate Templates ────────────────────────────────────────
+
+model CertificateTemplate {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String   @db.VarChar(120)
+  htmlTemplate String   @map("html_template") @db.Text
+  isDefault    Boolean  @default(false) @map("is_default")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaigns Campaign[]
+
+  @@map("certificate_templates")
+}
+
+// ─── Pet Domain ────────────────────────────────────────────────────
+
+model PetOwner {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  ownerName String   @map("owner_name") @db.VarChar(120)
+  mobile    String   @db.VarChar(20)
+  email     String?  @db.VarChar(255)
+  address   String?  @db.Text
+  isGuest   Boolean  @default(false) @map("is_guest")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user          User?                  @relation(fields: [userId], references: [id])
+  pets          Pet[]
+  registrations CampaignRegistration[]
+  waitlistItems CampaignWaitlist[]
+
+  @@index([mobile])
+  @@index([userId])
+  @@map("pet_owners")
+}
+
+model Pet {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId   String    @map("owner_id") @db.Uuid
+  name      String    @db.VarChar(120)
+  petType   PetType   @map("pet_type")
+  gender    PetGender
+  approxAge Int?      @map("approx_age")
+  breed     String?   @db.VarChar(120)
+  color     String?   @db.VarChar(80)
+  weightKg  Decimal?  @map("weight_kg") @db.Decimal(5, 2)
+  photoId   String?   @map("photo_id") @db.Uuid
+  notes     String?   @db.Text
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  owner              PetOwner            @relation(fields: [ownerId], references: [id])
+  photo              MediaFile?          @relation("PetPhoto", fields: [photoId], references: [id])
+  petBookings        PetBooking[]
+  vaccinationRecords VaccinationRecord[]
+
+  @@index([ownerId])
+  @@index([petType])
+  @@map("pets")
+}
+
+// ─── Doctor Domain ─────────────────────────────────────────────────
+
+model Doctor {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String?  @unique @map("user_id") @db.Uuid
+  name           String   @db.VarChar(120)
+  licenseNumber  String   @unique @map("license_number") @db.VarChar(80)
+  specialization String?  @db.VarChar(120)
+  mobile         String?  @db.VarChar(20)
+  email          String?  @db.VarChar(255)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user               User?               @relation(fields: [userId], references: [id])
+  campaignDoctors    CampaignDoctor[]
+  vaccinationRecords VaccinationRecord[]
+
+  @@map("doctors")
+}
+
+// ─── Volunteer Coverage Area ──────────────────────────────────────
+
+model VolunteerCoverageArea {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  zoneId    String   @map("zone_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+  zone Zone @relation(fields: [zoneId], references: [id])
+
+  @@unique([userId, zoneId])
+  @@map("volunteer_coverage_areas")
+}
+
+// ─── Campaign Core ─────────────────────────────────────────────────
+
+model Campaign {
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug                  String         @unique @db.VarChar(280)
+  title                 String         @db.VarChar(255)
+  description           String?        @db.Text
+  campaignType          CampaignType   @map("campaign_type")
+  status                CampaignStatus @default(draft)
+  startDate             DateTime       @map("start_date") @db.Timestamptz
+  endDate               DateTime       @map("end_date") @db.Timestamptz
+  registrationOpenAt    DateTime?      @map("registration_open_at") @db.Timestamptz
+  registrationCloseAt   DateTime?      @map("registration_close_at") @db.Timestamptz
+  basePriceBdt          Decimal        @default(0) @map("base_price_bdt") @db.Decimal(10, 2)
+  maxPetsPerBooking     Int            @default(10) @map("max_pets_per_booking")
+  certificateTemplateId String?        @map("certificate_template_id") @db.Uuid
+  coverImageId          String?        @map("cover_image_id") @db.Uuid
+  metadata              Json?
+  isFeatured            Boolean        @default(false) @map("is_featured")
+  termsAndConditions    String?        @map("terms_and_conditions") @db.Text
+  faq                   Json?
+  createdById           String         @map("created_by_id") @db.Uuid
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  createdBy           User                   @relation("CampaignCreatedBy", fields: [createdById], references: [id])
+  certificateTemplate CertificateTemplate?   @relation(fields: [certificateTemplateId], references: [id])
+  coverImage          MediaFile?             @relation("CampaignCover", fields: [coverImageId], references: [id])
+  media               CampaignMedia[]
+  sessions            CampaignSession[]
+  services            CampaignService[]
+  doctors             CampaignDoctor[]
+  volunteers          CampaignVolunteer[]
+  registrations       CampaignRegistration[]
+  waitlistItems       CampaignWaitlist[]
+  analytics           CampaignAnalytics?
+  vaccinationRecords  VaccinationRecord[]
+
+  @@index([status, startDate])
+  @@index([campaignType])
+  @@map("campaigns")
+}
+
+model CampaignMedia {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId  String            @map("campaign_id") @db.Uuid
+  mediaFileId String            @map("media_file_id") @db.Uuid
+  role        CampaignMediaRole
+  sortOrder   Int               @default(0) @map("sort_order")
+  altText     String?           @map("alt_text") @db.VarChar(255)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  campaign  Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  mediaFile MediaFile @relation(fields: [mediaFileId], references: [id])
+
+  @@index([campaignId, role])
+  @@map("campaign_media")
+}
+
+model CampaignSession {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId  String   @map("campaign_id") @db.Uuid
+  venueId     String   @map("venue_id") @db.Uuid
+  sessionDate DateTime @map("session_date") @db.Date
+  startTime   String   @map("start_time") @db.VarChar(5)
+  endTime     String   @map("end_time") @db.VarChar(5)
+  capacity    Int
+  bookedCount Int      @default(0) @map("booked_count")
+  isActive    Boolean  @default(true) @map("is_active")
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign      Campaign               @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  venue         Venue                  @relation(fields: [venueId], references: [id])
+  registrations CampaignRegistration[]
+  petBookings   PetBooking[]
+  waitlistItems CampaignWaitlist[]
+
+  @@index([campaignId, sessionDate])
+  @@index([venueId])
+  @@map("campaign_sessions")
+}
+
+model CampaignService {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId       String   @map("campaign_id") @db.Uuid
+  vaccineCatalogId String?  @map("vaccine_catalog_id") @db.Uuid
+  name             String   @db.VarChar(120)
+  description      String?  @db.Text
+  isRequired       Boolean  @default(true) @map("is_required")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign           Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  vaccineCatalog     VaccineCatalog?     @relation(fields: [vaccineCatalogId], references: [id])
+  petBookingServices PetBookingService[]
+  vaccinationRecords VaccinationRecord[]
+
+  @@index([campaignId])
+  @@map("campaign_services")
+}
+
+model CampaignDoctor {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId String   @map("campaign_id") @db.Uuid
+  doctorId   String   @map("doctor_id") @db.Uuid
+  sessionId  String?  @map("session_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  doctor   Doctor   @relation(fields: [doctorId], references: [id])
+
+  @@unique([campaignId, doctorId])
+  @@map("campaign_doctors")
+}
+
+model CampaignVolunteer {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId String   @map("campaign_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  sessionId  String?  @map("session_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([campaignId, userId])
+  @@map("campaign_volunteers")
+}
+
+// ─── Campaign Registrations ────────────────────────────────────────
+
+model CampaignRegistration {
+  id             String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingNumber  String                     @unique @map("booking_number") @db.VarChar(30)
+  campaignId     String                     @map("campaign_id") @db.Uuid
+  sessionId      String                     @map("session_id") @db.Uuid
+  ownerId        String                     @map("owner_id") @db.Uuid
+  status         CampaignRegistrationStatus @default(pending_payment)
+  totalAmountBdt Decimal                    @map("total_amount_bdt") @db.Decimal(10, 2)
+  paymentId      String?                    @unique @map("payment_id") @db.Uuid
+  isGuest        Boolean                    @default(false) @map("is_guest")
+  notes          String?                    @db.Text
+  createdAt      DateTime                   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime                   @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign    Campaign        @relation(fields: [campaignId], references: [id])
+  session     CampaignSession @relation(fields: [sessionId], references: [id])
+  owner       PetOwner        @relation(fields: [ownerId], references: [id])
+  payment     Payment?        @relation(fields: [paymentId], references: [id])
+  petBookings PetBooking[]
+
+  @@index([campaignId, status])
+  @@index([status, createdAt])
+  @@index([ownerId])
+  @@index([sessionId])
+  @@map("campaign_registrations")
+}
+
+model PetBooking {
+  id             String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  registrationId String                     @map("registration_id") @db.Uuid
+  petId          String                     @map("pet_id") @db.Uuid
+  sessionId      String                     @map("session_id") @db.Uuid
+  status         CampaignRegistrationStatus @default(pending_payment)
+  qrToken        String?                    @unique @map("qr_token") @db.VarChar(64)
+  checkedInAt    DateTime?                  @map("checked_in_at") @db.Timestamptz
+  vaccinatedAt   DateTime?                  @map("vaccinated_at") @db.Timestamptz
+  createdAt      DateTime                   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime                   @updatedAt @map("updated_at") @db.Timestamptz
+
+  registration       CampaignRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  pet                Pet                  @relation(fields: [petId], references: [id])
+  session            CampaignSession      @relation(fields: [sessionId], references: [id])
+  services           PetBookingService[]
+  vaccinationRecords VaccinationRecord[]
+  certificates       Certificate[]
+  qrScanLogs         QRScanLog[]
+
+  @@index([registrationId])
+  @@index([petId])
+  @@index([sessionId, status])
+  @@map("pet_bookings")
+}
+
+model PetBookingService {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  petBookingId      String    @map("pet_booking_id") @db.Uuid
+  campaignServiceId String    @map("campaign_service_id") @db.Uuid
+  administered      Boolean   @default(false)
+  administeredAt    DateTime? @map("administered_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  petBooking        PetBooking         @relation(fields: [petBookingId], references: [id], onDelete: Cascade)
+  campaignService   CampaignService    @relation(fields: [campaignServiceId], references: [id])
+  vaccinationRecord VaccinationRecord?
+
+  @@unique([petBookingId, campaignServiceId])
+  @@map("pet_booking_services")
+}
+
+model CampaignWaitlist {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId String         @map("campaign_id") @db.Uuid
+  sessionId  String         @map("session_id") @db.Uuid
+  ownerId    String         @map("owner_id") @db.Uuid
+  petCount   Int            @default(1) @map("pet_count")
+  status     WaitlistStatus @default(waiting)
+  position   Int
+  notifiedAt DateTime?      @map("notified_at") @db.Timestamptz
+  expiresAt  DateTime?      @map("expires_at") @db.Timestamptz
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign Campaign        @relation(fields: [campaignId], references: [id])
+  session  CampaignSession @relation(fields: [sessionId], references: [id])
+  owner    PetOwner        @relation(fields: [ownerId], references: [id])
+
+  @@index([campaignId, sessionId, position])
+  @@index([status])
+  @@map("campaign_waitlist")
+}
+
+model CampaignAnalytics {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId         String   @unique @map("campaign_id") @db.Uuid
+  totalRegistrations Int      @default(0) @map("total_registrations")
+  totalPaid          Int      @default(0) @map("total_paid")
+  totalPets          Int      @default(0) @map("total_pets")
+  totalVaccinated    Int      @default(0) @map("total_vaccinated")
+  totalCertificates  Int      @default(0) @map("total_certificates")
+  totalSmsSent       Int      @default(0) @map("total_sms_sent")
+  totalSmsFailed     Int      @default(0) @map("total_sms_failed")
+  totalRevenueBdt    Decimal  @default(0) @map("total_revenue_bdt") @db.Decimal(12, 2)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("campaign_analytics")
+}
+
+// ─── QR Scan Log ──────────────────────────────────────────────────
+
+model QRScanLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  qrToken      String   @map("qr_token") @db.VarChar(64)
+  petBookingId String?  @map("pet_booking_id") @db.Uuid
+  scannedById  String   @map("scanned_by_id") @db.Uuid
+  scanResult   String   @map("scan_result") @db.VarChar(30)
+  ipAddress    String?  @map("ip_address") @db.VarChar(45)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  petBooking PetBooking? @relation(fields: [petBookingId], references: [id])
+  scannedBy  User        @relation(fields: [scannedById], references: [id])
+
+  @@index([petBookingId])
+  @@index([scannedById])
+  @@index([createdAt])
+  @@map("qr_scan_logs")
+}
+
+// ─── Certificate ──────────────────────────────────────────────────
+
+model Certificate {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  certificateNumber String    @unique @map("certificate_number") @db.VarChar(30)
+  petBookingId      String    @map("pet_booking_id") @db.Uuid
+  verifyToken       String    @unique @map("verify_token") @db.Uuid
+  issuedById        String    @map("issued_by_id") @db.Uuid
+  issuedAt          DateTime  @map("issued_at") @db.Timestamptz
+  supersededAt      DateTime? @map("superseded_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  petBooking PetBooking @relation(fields: [petBookingId], references: [id])
+  issuedBy   User       @relation("CertificateIssuedBy", fields: [issuedById], references: [id])
+
+  @@index([petBookingId])
+  @@index([certificateNumber])
+  @@map("certificates")
+}
+
+// ─── Vaccination Records ───────────────────────────────────────────
+
+model VaccinationRecord {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  petId               String    @map("pet_id") @db.Uuid
+  petBookingId        String?   @map("pet_booking_id") @db.Uuid
+  petBookingServiceId String?   @unique @map("pet_booking_service_id") @db.Uuid
+  campaignServiceId   String?   @map("campaign_service_id") @db.Uuid
+  campaignId          String?   @map("campaign_id") @db.Uuid
+  vaccineName         String    @map("vaccine_name") @db.VarChar(120)
+  batchNumber         String?   @map("batch_number") @db.VarChar(120)
+  administeredAt      DateTime  @map("administered_at") @db.Timestamptz
+  nextDueDate         DateTime? @map("next_due_date") @db.Date
+  doctorId            String?   @map("doctor_id") @db.Uuid
+  notes               String?   @db.Text
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  pet               Pet                @relation(fields: [petId], references: [id])
+  petBooking        PetBooking?        @relation(fields: [petBookingId], references: [id])
+  petBookingService PetBookingService? @relation(fields: [petBookingServiceId], references: [id])
+  campaignService   CampaignService?   @relation(fields: [campaignServiceId], references: [id])
+  campaign          Campaign?          @relation(fields: [campaignId], references: [id])
+  doctor            Doctor?            @relation(fields: [doctorId], references: [id])
+
+  @@index([petId, administeredAt])
+  @@index([campaignId])
+  @@map("vaccination_records")
+}
