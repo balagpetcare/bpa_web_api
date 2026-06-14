@@ -1422,10 +1422,11 @@ model CommunityZone {
   createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz
 
-  coverImage        MediaFile?           @relation("CommunityZoneCover", fields: [coverImageId], references: [id], onDelete: SetNull)
-  contributions     CareContribution[]
-  cards             CarePartnerCard[]
-  censusSubmissions PetCensusSubmission[]
+  coverImage           MediaFile?                    @relation("CommunityZoneCover", fields: [coverImageId], references: [id], onDelete: SetNull)
+  contributions        CareContribution[]
+  cards                CarePartnerCard[]
+  censusSubmissions    PetCensusSubmission[]
+  membershipPurchases  CommunityMembershipPurchase[] @relation("MembershipPreferredZone")
 
   @@index([status, isActive, sortOrder])
   @@map("community_zones")
@@ -1980,18 +1981,21 @@ model CommunityMembershipPurchase {
   expiresAt         DateTime?                 @map("expires_at") @db.Date
   purchasedAt       DateTime?                 @map("purchased_at") @db.Timestamptz
   notes             String?                   @db.Text
+  preferredZoneId   String?                   @map("preferred_zone_id") @db.Uuid
   createdAt         DateTime                  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime                  @updatedAt @map("updated_at") @db.Timestamptz
 
-  tier     CommunityMembershipTier @relation(fields: [tierId], references: [id])
-  payment  Payment?                @relation("PurchasePayment", fields: [paymentId], references: [id], onDelete: SetNull)
-  card     CommunityMembershipCard?
-  upgrades CommunityMembershipUpgrade[]
+  tier          CommunityMembershipTier @relation(fields: [tierId], references: [id])
+  payment       Payment?                @relation("PurchasePayment", fields: [paymentId], references: [id], onDelete: SetNull)
+  card          CommunityMembershipCard?
+  upgrades      CommunityMembershipUpgrade[]
+  preferredZone CommunityZone?          @relation("MembershipPreferredZone", fields: [preferredZoneId], references: [id], onDelete: SetNull)
 
   @@index([tierId])
   @@index([memberMobile])
   @@index([status])
   @@index([createdAt])
+  @@index([preferredZoneId])
   @@map("community_membership_purchases")
 }
 

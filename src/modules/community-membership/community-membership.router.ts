@@ -34,6 +34,7 @@ import {
   listUpgradesHandler, getUpgradeHandler, adminSettleUpgradeHandler,
   listDocumentsHandler, getDocumentHandler, createDocumentHandler, updateDocumentHandler, deleteDocumentHandler,
   downloadPdfByTokenHandler, getPurchaseStatusHandler, submitTransactionHandler,
+  getZoneDemandHandler,
 } from './community-membership.controller';
 import { updateProgramSchema } from './community-membership.types';
 
@@ -100,6 +101,7 @@ adminRouter.delete('/documents/:id', validateUuid('id'), authorize(RESOURCES.COM
 const publicRouter = Router();
 
 publicRouter.get('/overview', publicReadLimiter, getPublicOverviewHandler);
+publicRouter.get('/zone-demand', publicReadLimiter, getZoneDemandHandler);
 publicRouter.get('/tiers', publicReadLimiter, listTiersHandler);
 publicRouter.get('/tiers/:slug', publicReadLimiter, getTierBySlugHandler);
 publicRouter.get('/services', publicReadLimiter, listServicesHandler);

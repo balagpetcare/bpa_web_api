@@ -6,8 +6,21 @@ import type { ContributionListQuery, UpdateContributionDto } from './care-contri
 const contributionInclude = {
   plan: { select: { id: true, title: true, amountBdt: true, legalDisclaimerText: true } },
   zone: { select: { id: true, name: true, slug: true } },
-  carePartnerCard: { select: { id: true, cardNumber: true, status: true } },
+  card: { select: { id: true, cardNumber: true, status: true } },
 } as const;
+
+type ContributionWithRelations = Prisma.CareContributionGetPayload<{ include: typeof contributionInclude }>;
+type ContributionResponse = Omit<ContributionWithRelations, 'card'> & {
+  carePartnerCard: ContributionWithRelations['card'];
+};
+
+function mapContribution(item: ContributionWithRelations): ContributionResponse {
+  const { card, ...rest } = item;
+  return {
+    ...rest,
+    carePartnerCard: card,
+  };
+}
 
 export async function generateContributionNumber(): Promise<string> {
   const year = new Date().getFullYear().toString();
@@ -31,7 +44,7 @@ export async function createContribution(data: {
   amountBdt: number;
   isAnonymous: boolean;
 }) {
-  return prisma.careContribution.create({
+  const contribution = await prisma.careContribution.create({
     data: {
       contributionNumber: data.contributionNumber,
       planId: data.planId,
@@ -45,6 +58,7 @@ export async function createContribution(data: {
     },
     include: contributionInclude,
   });
+  return mapContribution(contribution);
 }
 
 export async function linkPaymentToContribution(contributionId: string, paymentId: string) {
@@ -70,17 +84,20 @@ export async function listContributions(query: ContributionListQuery) {
     prisma.careContribution.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, include: contributionInclude }),
     prisma.careContribution.count({ where }),
   ]);
-  return { items, meta: buildPaginationMeta(total, page, limit) };
+  return { items: items.map(mapContribution), meta: buildPaginationMeta(total, page, limit) };
 }
 
 export async function getContributionById(id: string) {
-  return prisma.careContribution.findUnique({ where: { id }, include: contributionInclude });
+  const contribution = await prisma.careContribution.findUnique({ where: { id }, include: contributionInclude });
+  return contribution ? mapContribution(contribution) : null;
 }
 
 export async function getContributionByNumber(contributionNumber: string) {
-  return prisma.careContribution.findUnique({ where: { contributionNumber }, include: contributionInclude });
+  const contribution = await prisma.careContribution.findUnique({ where: { contributionNumber }, include: contributionInclude });
+  return contribution ? mapContribution(contribution) : null;
 }
 
 export async function updateContribution(id: string, dto: UpdateContributionDto) {
-  return prisma.careContribution.update({ where: { id }, data: dto, include: contributionInclude });
+  const contribution = await prisma.careContribution.update({ where: { id }, data: dto, include: contributionInclude });
+  return mapContribution(contribution);
 }

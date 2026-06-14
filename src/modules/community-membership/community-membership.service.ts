@@ -5,6 +5,7 @@ import { AppError } from '../../utils/AppError';
 import { getEPS, generateMerchantTxnId, isEPSConfigured } from '../../services/eps.service';
 import { createPayment, updatePaymentEpsTxnId, updatePaymentStatus } from '../payments/payments.repository';
 import * as repo from './community-membership.repository';
+import { getZoneById } from '../community-zones/community-zones.repository';
 import type {
   InitiatePurchaseDto, UpgradeQuoteDto, UpgradeRequestDto, VerifyCardQuery,
   LookupMembershipDto, SubmitUpgradeTransactionDto, SubmitPurchaseTransactionDto,
@@ -181,6 +182,16 @@ export async function initiatePurchase(dto: InitiatePurchaseDto, ipAddress?: str
     throw AppError.badRequest('This membership tier is no longer available for purchase');
   }
 
+  // Validate preferred zone if provided
+  let zone: { id: string; name: string } | null = null;
+  if (dto.preferredZoneId) {
+    const found = await getZoneById(dto.preferredZoneId);
+    if (!found || !found.isActive || found.status !== 'active') {
+      throw AppError.badRequest('Selected clinic zone is not available. Please choose another zone.');
+    }
+    zone = { id: found.id, name: found.name };
+  }
+
   const amount = currentPrice;
   const merchantTxnId = generateMerchantTxnId();
 
@@ -212,10 +223,11 @@ export async function initiatePurchase(dto: InitiatePurchaseDto, ipAddress?: str
     amountBdt: amount,
     petLimit: tier.petLimitMax,
     status: 'pending_payment',
+    ...(zone ? { preferredZone: { connect: { id: zone.id } } } : {}),
     notes: [
       ipAddress ? `IP: ${ipAddress}` : null,
       dto.petCount ? `Pets: ${dto.petCount}` : null,
-      dto.preferredZone ? `Zone pref: ${dto.preferredZone}` : null,
+      zone ? `Zone: ${zone.name}` : null,
     ].filter(Boolean).join(' | ') || null,
   });
 

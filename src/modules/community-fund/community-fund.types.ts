@@ -7,6 +7,7 @@ export interface ZoneStat {
   targetAmountBdt: number;
   currentAmountBdt: number;
   progressPercent: number;
+  carePartnerMembers: number;
 }
 
 export interface CommunityFundOverview {

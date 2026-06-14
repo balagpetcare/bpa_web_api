@@ -99,7 +99,7 @@ export const initiatePurchaseSchema = z.object({
   memberEmail: z.string().email().max(255).optional().or(z.literal('')),
   memberAddress: z.string().max(500).optional().or(z.literal('')),
   petCount: z.number().int().min(1).max(50).optional(),
-  preferredZone: z.string().max(100).optional().or(z.literal('')),
+  preferredZoneId: z.string().uuid().optional(),
 });
 
 export const purchaseListQuerySchema = z.object({

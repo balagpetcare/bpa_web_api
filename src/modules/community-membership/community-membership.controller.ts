@@ -404,8 +404,22 @@ export async function getPurchaseStatusHandler(req: Request, res: Response, next
         toTierNameBn: pendingUpgrade.toTier.nameBn,
         upgradeAmount: Number(pendingUpgrade.upgradeAmountBdt),
       } : null,
+      preferredZone: purchase.preferredZone ? {
+        id: purchase.preferredZone.id,
+        name: purchase.preferredZone.name,
+        slug: purchase.preferredZone.slug,
+        city: purchase.preferredZone.city,
+        district: purchase.preferredZone.district,
+      } : null,
     });
   } catch (err) { next(err); }
+}
+
+// ─── Public Zone Demand ─────────────────────────────────────────
+
+export async function getZoneDemandHandler(_req: Request, res: Response, next: NextFunction) {
+  try { sendSuccess(res, await repo.getZoneDemandStats()); }
+  catch (err) { next(err); }
 }
 
 // ─── Public Submit Transaction (manual mode) ────────────────────

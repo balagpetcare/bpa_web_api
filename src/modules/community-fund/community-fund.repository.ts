@@ -17,6 +17,10 @@ export async function getDashboardStats(): Promise<CommunityFundDashboard> {
         id: true, name: true, slug: true,
         targetContributors: true, currentContributors: true,
         targetAmountBdt: true, currentAmountBdt: true,
+        membershipPurchases: {
+          where: { status: 'paid' },
+          select: { id: true },
+        },
       },
       orderBy: [{ sortOrder: 'asc' }],
     }),
@@ -53,6 +57,7 @@ export async function getDashboardStats(): Promise<CommunityFundDashboard> {
     progressPercent: z.targetContributors > 0
       ? Math.min(100, Math.round((z.currentContributors / z.targetContributors) * 100))
       : 0,
+    carePartnerMembers: z.membershipPurchases.length,
   }));
 
   return {

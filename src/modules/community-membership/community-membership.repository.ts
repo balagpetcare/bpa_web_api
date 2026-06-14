@@ -174,6 +174,7 @@ const purchaseInclude = {
   payment: true,
   card: true,
   upgrades: { include: { fromTier: { select: { id: true, nameEn: true } }, toTier: { select: { id: true, nameEn: true } }, payment: true } },
+  preferredZone: { select: { id: true, name: true, slug: true, city: true, district: true } },
 } as const;
 
 export async function listPurchases(query: PurchaseListQuery) {
@@ -410,6 +411,7 @@ export async function getDashboardStats() {
     pendingPayments,
     pendingUpgrades,
     program,
+    zoneDemand,
   ] = await Promise.all([
     prisma.communityMembershipPurchase.count({ where: { status: 'paid' } }),
     prisma.communityMembershipPurchase.aggregate({
@@ -420,6 +422,7 @@ export async function getDashboardStats() {
     prisma.communityMembershipPurchase.count({ where: { status: 'pending_payment' } }),
     prisma.communityMembershipUpgrade.count({ where: { status: 'pending_payment' } }),
     getProgram(),
+    getZoneDemandStats(),
   ]);
 
   return {
@@ -433,5 +436,47 @@ export async function getDashboardStats() {
         ? new Date() >= program.offerStartAt && new Date() <= program.offerEndAt
         : false)
       : false,
+    zoneDemand,
   };
+}
+
+export async function getZoneDemandStats() {
+  const zones = await prisma.communityZone.findMany({
+    where: { isActive: true },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      city: true,
+      district: true,
+      status: true,
+      _count: { select: { membershipPurchases: true } },
+      membershipPurchases: {
+        where: { status: 'paid' },
+        select: { id: true },
+      },
+    },
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  const withScores = zones.map((z) => {
+    const paidPurchases = z.membershipPurchases.length;
+    const pendingPurchases = z._count.membershipPurchases - paidPurchases;
+    const demandScore = paidPurchases * 2 + pendingPurchases;
+    return {
+      id: z.id,
+      name: z.name,
+      slug: z.slug,
+      city: z.city,
+      district: z.district,
+      status: z.status,
+      paidPurchases,
+      totalPurchases: z._count.membershipPurchases,
+      demandScore,
+    };
+  });
+
+  withScores.sort((a, b) => b.demandScore - a.demandScore || b.totalPurchases - a.totalPurchases);
+
+  return withScores.map((z, i) => ({ ...z, rank: i + 1 }));
 }
