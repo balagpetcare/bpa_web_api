@@ -12,6 +12,7 @@ export interface ZoneStat {
 export interface CommunityFundOverview {
   totalContributors: number;
   totalAmountBdt: number;
+  totalActiveCards: number;
   zones: {
     id: string;
     name: string;
@@ -24,6 +25,25 @@ export interface CommunityFundOverview {
     clinicAddress: string | null;
     coverImage: { id: string; url: string; altText: string | null } | null;
   }[];
+}
+
+export interface PublicContributor {
+  id: string;
+  contributionNumber: string;
+  displayName: string;
+  isAnonymous: boolean;
+  zoneName: string;
+  createdAt: string;
+}
+
+export interface PublicImpactStats {
+  strayAnimalsSupported: number;
+  animalsVaccinated: number;
+  rescueCasesSupported: number;
+  feedingProgramsRun: number;
+  lowIncomeFamiliesAssisted: number;
+  totalContributors: number;
+  totalZones: number;
 }
 
 export interface CommunityFundDashboard {

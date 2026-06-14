@@ -10,17 +10,15 @@
  *   and set S3_FORCE_PATH_STYLE=false — no code changes required.
  */
 
-import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
+import { AppError } from '../utils/AppError';
 
 // ─── Object key strategy ─────────────────────────────────────────
-// Keys: media/<YYYY>/<MM>/<uuid><ext>
-// e.g. media/2024/06/3f2a1b4c-....jpg
-// This is stored in MediaFile.filename and is the lookup key for deletes.
 
 export function buildObjectKey(originalname: string): string {
   const now = new Date();
@@ -33,6 +31,8 @@ export function buildObjectKey(originalname: string): string {
 export function getPublicUrl(objectKey: string): string {
   const base = (config.MEDIA_PUBLIC_BASE_URL ?? config.BACKEND_URL).replace(/\/$/, '');
   if (config.STORAGE_DRIVER === 's3') {
+    // If S3_ENDPOINT is local MinIO, ensure base URL is correct.
+    // .env has MEDIA_PUBLIC_BASE_URL=http://127.0.0.1:9000/bpa-pets
     return `${base}/${objectKey}`;
   }
   // local: only the filename part lives under /uploads
@@ -51,37 +51,91 @@ class S3Driver {
   private readonly bucket: string;
 
   constructor() {
-    if (!config.S3_BUCKET)      throw new Error('S3_BUCKET is required when STORAGE_DRIVER=s3');
-    if (!config.S3_ACCESS_KEY_ID)   throw new Error('S3_ACCESS_KEY_ID is required when STORAGE_DRIVER=s3');
-    if (!config.S3_SECRET_ACCESS_KEY) throw new Error('S3_SECRET_ACCESS_KEY is required when STORAGE_DRIVER=s3');
+    this.validateConfig();
 
-    this.bucket = config.S3_BUCKET;
+    this.bucket = config.S3_BUCKET!;
     this.client = new S3Client({
       region: config.S3_REGION ?? 'us-east-1',
       ...(config.S3_ENDPOINT ? { endpoint: config.S3_ENDPOINT } : {}),
       forcePathStyle: config.S3_FORCE_PATH_STYLE === 'true',
       credentials: {
-        accessKeyId: config.S3_ACCESS_KEY_ID,
-        secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+        accessKeyId: config.S3_ACCESS_KEY_ID!,
+        secretAccessKey: config.S3_SECRET_ACCESS_KEY!,
       },
     });
+  }
+
+  private validateConfig() {
+    const missing = [];
+    if (!config.S3_BUCKET) missing.push('S3_BUCKET');
+    if (!config.S3_ACCESS_KEY_ID) missing.push('S3_ACCESS_KEY_ID');
+    if (!config.S3_SECRET_ACCESS_KEY) missing.push('S3_SECRET_ACCESS_KEY');
+    
+    if (missing.length > 0) {
+      throw new Error(`Missing S3 configuration keys: ${missing.join(', ')}. Check your .env file.`);
+    }
+  }
+
+  /**
+   * Performs a lightweight check to see if the bucket is accessible.
+   */
+  async healthCheck() {
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
+    } catch (err: any) {
+      if (err.name === 'InvalidAccessKeyId' || err.$metadata?.httpStatusCode === 403) {
+        throw AppError.internal('Invalid S3/MinIO credentials. Please check S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY.');
+      }
+      if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
+        throw AppError.internal(`S3 Bucket "${this.bucket}" not found. Please create it first.`);
+      }
+      throw AppError.internal(`Storage health check failed: ${err.message}`);
+    }
   }
 
   async upload(buffer: Buffer, objectKey: string, mimeType: string): Promise<void> {
-    const up = new Upload({
-      client: this.client,
-      params: {
-        Bucket: this.bucket,
-        Key: objectKey,
-        Body: buffer,
-        ContentType: mimeType,
-      },
-    });
-    await up.done();
+    try {
+      const up = new Upload({
+        client: this.client,
+        params: {
+          Bucket: this.bucket,
+          Key: objectKey,
+          Body: buffer,
+          ContentType: mimeType,
+        },
+      });
+      await up.done();
+    } catch (err: any) {
+      console.error('[storage] S3 upload error:', err);
+      if (err.name === 'InvalidAccessKeyId' || err.$metadata?.httpStatusCode === 403) {
+        throw AppError.internal('Access denied to storage service. Check credentials.');
+      }
+      throw AppError.internal(`Failed to upload file to storage: ${err.message}`);
+    }
+  }
+
+  async download(objectKey: string): Promise<Buffer> {
+    try {
+      const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: objectKey }));
+      if (!res.Body) throw new Error(`Empty body for ${objectKey}`);
+      // @ts-ignore
+      const chunks = [];
+      // @ts-ignore
+      for await (const chunk of res.Body) {
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks);
+    } catch (err: any) {
+      throw AppError.internal(`Failed to download from storage: ${err.message}`);
+    }
   }
 
   async delete(objectKey: string): Promise<void> {
-    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: objectKey }));
+    try {
+      await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: objectKey }));
+    } catch (err: any) {
+      console.warn(`[storage] Failed to delete "${objectKey}":`, err.message);
+    }
   }
 }
 
@@ -93,19 +147,41 @@ class LocalDriver {
   constructor() {
     this.uploadsDir = path.join(process.cwd(), 'uploads');
     if (!fs.existsSync(this.uploadsDir)) {
+      console.log(`[storage] Creating local uploads directory at ${this.uploadsDir}`);
       fs.mkdirSync(this.uploadsDir, { recursive: true });
     }
   }
 
+  async healthCheck() {
+    if (!fs.existsSync(this.uploadsDir)) {
+      throw AppError.internal(`Uploads directory not found at ${this.uploadsDir}`);
+    }
+  }
+
   async upload(buffer: Buffer, objectKey: string, _mimeType: string): Promise<void> {
-    // Flatten to /uploads/<basename> for local dev simplicity
-    const dest = path.join(this.uploadsDir, path.basename(objectKey));
-    fs.writeFileSync(dest, buffer);
+    try {
+      // Flatten to /uploads/<basename> for local dev simplicity
+      const dest = path.join(this.uploadsDir, path.basename(objectKey));
+      fs.writeFileSync(dest, buffer);
+    } catch (err: any) {
+      throw AppError.internal(`Failed to write file to disk: ${err.message}`);
+    }
+  }
+
+  async download(objectKey: string): Promise<Buffer> {
+    const filePath = path.join(this.uploadsDir, path.basename(objectKey));
+    if (!fs.existsSync(filePath)) throw AppError.notFound('File not found on disk');
+    return fs.readFileSync(filePath);
   }
 
   async delete(objectKey: string): Promise<void> {
     const filePath = path.join(this.uploadsDir, path.basename(objectKey));
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
+  
+  fileExists(objectKey: string): boolean {
+    const filePath = path.join(this.uploadsDir, path.basename(objectKey));
+    return fs.existsSync(filePath);
   }
 }
 
@@ -122,6 +198,23 @@ function getDriver(): S3Driver | LocalDriver {
 
 // ─── Public API ──────────────────────────────────────────────────
 
+export async function checkStorageHealth() {
+  await getDriver().healthCheck();
+}
+
+/**
+ * Checks if a file exists (only for local driver, returns true for S3 to avoid latency).
+ */
+export function verifyFileExists(objectKey: string): boolean {
+  const d = getDriver();
+  if (d instanceof LocalDriver) {
+    return d.fileExists(objectKey);
+  }
+  return true; // S3 assumed true to avoid HEAD request latency in lists
+}
+
+// ─── Public API ──────────────────────────────────────────────────
+
 /**
  * Upload a multer in-memory file to the configured storage backend.
  * Returns the objectKey (stored in MediaFile.filename) and the public URL.
@@ -131,6 +224,22 @@ export async function uploadToStorage(file: Express.Multer.File): Promise<Upload
   const objectKey = buildObjectKey(file.originalname);
   await getDriver().upload(file.buffer, objectKey, file.mimetype);
   return { objectKey, url: getPublicUrl(objectKey) };
+}
+
+/**
+ * Upload a raw Buffer to storage.
+ */
+export async function uploadBufferToStorage(buffer: Buffer, originalname: string, mimeType: string): Promise<UploadResult> {
+  const objectKey = buildObjectKey(originalname);
+  await getDriver().upload(buffer, objectKey, mimeType);
+  return { objectKey, url: getPublicUrl(objectKey) };
+}
+
+/**
+ * Download an object from storage as a Buffer.
+ */
+export async function downloadFromStorage(objectKey: string): Promise<Buffer> {
+  return getDriver().download(objectKey);
 }
 
 /**

@@ -29,13 +29,27 @@ const envSchema = z.object({
   SMS_API_KEY: z.string().optional(),
   SMS_SENDER_ID: z.string().optional(),
 
+  // EPS Payment Gateway — feature flag and environment
+  // EPS_ENABLED=true   → EPS payment is active (requires all credentials below)
+  // EPS_ENABLED=false  → fall back to manual/support mode
+  EPS_ENABLED: z.enum(['true', 'false']).default('false'),
+  // EPS_ENV=demo        → sandbox endpoints (sandbox-pgapi.eps.com.bd)
+  // EPS_ENV=production  → live endpoints    (pgapi.eps.com.bd)
+  EPS_ENV: z.enum(['demo', 'production']).default('demo'),
+  // Legacy alias kept for backward-compat; EPS_ENV takes precedence when both are set
+  EPS_SANDBOX: z.enum(['true', 'false']).default('true'),
+
   // EPS Payment Gateway SDK credentials
   EPS_USERNAME: z.string().optional(),
   EPS_PASSWORD: z.string().optional(),
   EPS_HASH_KEY: z.string().optional(),
   EPS_MERCHANT_ID: z.string().optional(),
   EPS_STORE_ID: z.string().optional(),
-  EPS_SANDBOX: z.enum(['true', 'false']).default('true'),
+
+  // Payment channel routing
+  // PAYMENT_CHANNEL_MODE=EPS     → use EPS gateway (requires EPS_ENABLED=true + credentials)
+  // PAYMENT_CHANNEL_MODE=MANUAL  → skip gateway, return booking for manual payment/support
+  PAYMENT_CHANNEL_MODE: z.enum(['EPS', 'MANUAL']).default('MANUAL'),
 
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
   BACKEND_URL: z.string().url().default('http://localhost:4000'),

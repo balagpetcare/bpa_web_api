@@ -93,6 +93,14 @@ export async function cancelCampaignHandler(req: Request, res: Response, next: N
   } catch (err) { next(err); }
 }
 
+export async function reopenCampaignHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const campaign = await svc.reopenCampaign(req.params.id);
+    await auditUpdate('campaign', req.params.id, {}, { status: 'reopened' }, auditContextFromRequest(req));
+    sendSuccess(res, campaign);
+  } catch (err) { next(err); }
+}
+
 // ─── Sessions ────────────────────────────────────────────────────
 
 export async function createSessionHandler(req: Request, res: Response, next: NextFunction): Promise<void> {

@@ -56,7 +56,7 @@ export async function createCampaignMedia(
   });
 }
 
-export async function updateCampaignMedia(id: string, data: { altText?: string | null; sortOrder?: number }) {
+export async function updateCampaignMedia(id: string, data: { mediaFileId?: string; altText?: string | null; sortOrder?: number }) {
   return prisma.campaignMedia.update({ where: { id }, data, include: mediaInclude });
 }
 

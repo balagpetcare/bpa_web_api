@@ -13,8 +13,18 @@ export const mediaListQuerySchema = z.object({
   mimeType: z.string().optional(),
 });
 
+export const cropMediaSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+  targetWidth: z.number().int().positive(),
+  targetHeight: z.number().int().positive(),
+});
+
 export type UpdateMediaDto = z.infer<typeof updateMediaSchema>;
 export type MediaListQuery = z.infer<typeof mediaListQuerySchema>;
+export type CropMediaDto = z.infer<typeof cropMediaSchema>;
 
 // ─── Response shapes ──────────────────────────────────────────────
 
@@ -26,7 +36,8 @@ export interface MediaFileResponse {
   sizeBytes: string;
   url: string;
   altText: string | null;
-  uploadedById: string;
+  uploadedById: string | null;
   createdAt: Date;
   updatedAt: Date;
+  missing?: boolean;
 }

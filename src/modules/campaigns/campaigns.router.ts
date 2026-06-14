@@ -14,7 +14,7 @@ import {
   createCampaignHandler, listCampaignsHandler, getCampaignHandler,
   updateCampaignHandler, deleteCampaignHandler,
   publishCampaignHandler, openRegistrationHandler, closeRegistrationHandler,
-  completeCampaignHandler, cancelCampaignHandler,
+  completeCampaignHandler, cancelCampaignHandler, reopenCampaignHandler,
   createSessionHandler, listSessionsHandler, updateSessionHandler, deleteSessionHandler,
   createServiceHandler, listServicesHandler, updateServiceHandler, deleteServiceHandler,
   assignDoctorHandler, listCampaignDoctorsHandler, removeDoctorHandler,
@@ -23,6 +23,7 @@ import {
 import {
   listHandler as mediaListHandler,
   uploadHandler as mediaUploadHandler,
+  attachHandler as mediaAttachHandler,
   updateHandler as mediaUpdateHandler,
   deleteHandler as mediaDeleteHandler,
   reorderHandler as mediaReorderHandler,
@@ -48,6 +49,7 @@ router.patch('/:id/open-registration', validateUuid('id'), authorize(RESOURCES.C
 router.patch('/:id/close-registration', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.LIFECYCLE), closeRegistrationHandler);
 router.patch('/:id/complete', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.LIFECYCLE), completeCampaignHandler);
 router.patch('/:id/cancel', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.LIFECYCLE), cancelCampaignHandler);
+router.patch('/:id/reopen', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.LIFECYCLE), reopenCampaignHandler);
 
 // ─── Sessions ────────────────────────────────────────────────────
 
@@ -79,6 +81,7 @@ router.delete('/:id/volunteers/:userId', validateUuid('id', 'userId'), authorize
 
 router.get('/:id/media', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.READ), mediaListHandler);
 router.post('/:id/media/upload', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.UPDATE), uploadSingle, mediaUploadHandler);
+router.post('/:id/media/attach', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.UPDATE), mediaAttachHandler);
 router.patch('/:id/media/reorder', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.UPDATE), mediaReorderHandler);
 router.patch('/:id/media/:mediaId', validateUuid('id', 'mediaId'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.UPDATE), mediaUpdateHandler);
 router.delete('/:id/media/:mediaId', validateUuid('id', 'mediaId'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.UPDATE), mediaDeleteHandler);

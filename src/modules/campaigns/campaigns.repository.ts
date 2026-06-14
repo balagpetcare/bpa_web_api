@@ -11,7 +11,18 @@ import type {
 const campaignInclude = {
   createdBy: { select: { id: true, name: true, email: true } },
   coverImage: { select: { id: true, url: true, altText: true } },
-  _count: { select: { sessions: true, services: true, doctors: true, volunteers: true } },
+  _count: { select: { sessions: true, services: true, doctors: true, volunteers: true, registrations: true } },
+  media: {
+    where: { role: { in: ['thumbnail', 'hero', 'mobile_banner'] } } as any,
+    orderBy: [{ role: 'asc' }, { sortOrder: 'asc' }] as any,
+    include: { mediaFile: { select: { id: true, url: true, mimeType: true } } },
+    take: 3,
+  },
+  // Minimal service pricing included on list so cards can show discount
+  services: {
+    select: { id: true, priceBdt: true },
+    orderBy: { sortOrder: 'asc' as const },
+  },
 } as const;
 
 const campaignDetailInclude = {
@@ -21,7 +32,7 @@ const campaignDetailInclude = {
   media: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     orderBy: [{ role: 'asc' }, { sortOrder: 'asc' }] as any,
-    include: { mediaFile: { select: { id: true, url: true, mimeType: true } } },
+    include: { mediaFile: { select: { id: true, url: true, mimeType: true, sizeBytes: true, originalName: true } } },
   },
   sessions: {
     include: {
@@ -67,6 +78,7 @@ export async function createCampaign(dto: CreateCampaignDto, slug: string, creat
       coverImageId: dto.coverImageId,
       metadata: dto.metadata as Prisma.InputJsonValue ?? Prisma.JsonNull,
       isFeatured: dto.isFeatured,
+      allowedPetTypes: dto.allowedPetTypes ?? [],
       termsAndConditions: dto.termsAndConditions,
       faq: dto.faq as Prisma.InputJsonValue ?? Prisma.JsonNull,
     },
@@ -123,6 +135,7 @@ export async function getCampaignBySlug(slug: string) {
 export async function updateCampaign(id: string, dto: UpdateCampaignDto) {
   const data: Prisma.CampaignUpdateInput = {
     title: dto.title,
+    slug: dto.slug,
     description: dto.description,
     campaignType: dto.campaignType,
     basePriceBdt: dto.basePriceBdt,
@@ -144,6 +157,7 @@ export async function updateCampaign(id: string, dto: UpdateCampaignDto) {
   if (dto.registrationCloseAt !== undefined) data.registrationCloseAt = dto.registrationCloseAt ? new Date(dto.registrationCloseAt) : null;
   if (dto.metadata !== undefined) data.metadata = (dto.metadata ?? Prisma.JsonNull) as Prisma.InputJsonValue;
   if (dto.isFeatured !== undefined) data.isFeatured = dto.isFeatured;
+  if (dto.allowedPetTypes !== undefined) data.allowedPetTypes = dto.allowedPetTypes;
   if (dto.termsAndConditions !== undefined) data.termsAndConditions = dto.termsAndConditions;
   if (dto.faq !== undefined) data.faq = (dto.faq ?? Prisma.JsonNull) as Prisma.InputJsonValue;
   return prisma.campaign.update({ where: { id }, data, include: campaignInclude });
@@ -203,7 +217,15 @@ export async function deleteSession(id: string) {
 
 export async function createService(campaignId: string, dto: CreateServiceDto) {
   return prisma.campaignService.create({
-    data: { campaignId, ...dto },
+    data: {
+      campaignId,
+      name: dto.name,
+      description: dto.description,
+      vaccineCatalogId: dto.vaccineCatalogId,
+      isRequired: dto.isRequired,
+      sortOrder: dto.sortOrder,
+      priceBdt: dto.priceBdt,
+    },
     include: { vaccineCatalog: { select: { id: true, name: true } } },
   });
 }
@@ -223,7 +245,14 @@ export async function getServiceById(id: string) {
 export async function updateService(id: string, dto: UpdateServiceDto) {
   return prisma.campaignService.update({
     where: { id },
-    data: dto,
+    data: {
+      name: dto.name,
+      description: dto.description,
+      vaccineCatalogId: dto.vaccineCatalogId,
+      isRequired: dto.isRequired,
+      sortOrder: dto.sortOrder,
+      priceBdt: dto.priceBdt,
+    },
     include: { vaccineCatalog: { select: { id: true, name: true } } },
   });
 }

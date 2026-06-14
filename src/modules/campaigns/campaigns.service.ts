@@ -45,9 +45,14 @@ export async function getCampaign(id: string) {
 
 export async function updateCampaign(id: string, dto: UpdateCampaignDto) {
   const campaign = await getCampaign(id);
-  if (campaign.status !== CampaignStatus.draft) {
-    throw AppError.badRequest('Only draft campaigns can be edited. Use lifecycle endpoints to change status.');
+  
+  if (dto.slug && dto.slug !== campaign.slug) {
+    const existing = await prisma.campaign.findFirst({ where: { slug: dto.slug, id: { not: id } } });
+    if (existing) throw AppError.conflict('Campaign with this slug already exists');
   }
+
+  // Removed restriction: Only draft campaigns can be edited.
+  // This allows fixing mistakes even after a campaign is published or registration is open.
   return repo.updateCampaign(id, dto);
 }
 
@@ -85,6 +90,31 @@ export async function cancelCampaign(id: string) {
     throw AppError.badRequest('Campaign is already completed or cancelled');
   }
   return repo.updateCampaignStatus(id, CampaignStatus.cancelled);
+}
+
+export async function reopenCampaign(id: string) {
+  const campaign = await getCampaign(id);
+
+  const reopenableStatuses: CampaignStatus[] = [
+    CampaignStatus.registration_closed,
+    CampaignStatus.completed,
+  ];
+
+  if (!reopenableStatuses.includes(campaign.status as CampaignStatus)) {
+    if (campaign.status === CampaignStatus.cancelled) {
+      throw AppError.badRequest('Cancelled campaigns cannot be reopened. Create a new campaign instead.');
+    }
+    throw AppError.badRequest(`Campaign cannot be reopened from "${campaign.status}" status.`);
+  }
+
+  // Block reopen if registration close date is already past
+  const now = new Date();
+  const closeAt = campaign.registrationCloseAt ? new Date(campaign.registrationCloseAt) : null;
+  if (closeAt && closeAt < now) {
+    throw AppError.badRequest('Registration close date has passed. Update registration close date before reopening.');
+  }
+
+  return repo.updateCampaignStatus(id, CampaignStatus.registration_open);
 }
 
 export async function deleteCampaign(id: string) {

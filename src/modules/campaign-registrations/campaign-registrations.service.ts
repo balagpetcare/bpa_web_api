@@ -32,9 +32,19 @@ export async function registerForCampaign(dto: RegisterCampaignDto) {
   // Validate all pets exist and belong to an owner
   const pets = await prisma.pet.findMany({
     where: { id: { in: dto.petIds }, isActive: true },
+    select: { id: true, ownerId: true, petType: true },
   });
   if (pets.length !== dto.petIds.length) {
     throw AppError.badRequest('One or more pets not found or inactive');
+  }
+
+  // Enforce pet type restrictions when campaign limits which types are allowed
+  if (campaign.allowedPetTypes.length > 0) {
+    const disallowed = pets.filter(p => !campaign.allowedPetTypes.includes(p.petType));
+    if (disallowed.length > 0) {
+      const types = [...new Set(disallowed.map(p => p.petType))].join(', ');
+      throw AppError.badRequest(`This campaign does not accept the following pet type(s): ${types}`);
+    }
   }
 
   // Find or create pet owner by mobile
@@ -124,10 +134,6 @@ export async function registerForCampaign(dto: RegisterCampaignDto) {
     }
 
     // Paid campaign: create payment and init EPS
-    if (!isEPSConfigured()) {
-      throw AppError.badRequest('Payment gateway not configured');
-    }
-
     const merchantTxnId = generateMerchantTxnId();
     const payment = await prisma.payment.create({
       data: {
@@ -143,30 +149,55 @@ export async function registerForCampaign(dto: RegisterCampaignDto) {
 
     await repo.linkPayment(registration.id, payment.id);
 
-    const eps = getEPS();
-    const { BACKEND_URL } = await import('../../config').then(m => m.config);
-    const epsResult = await eps.initializePayment({
-      customerOrderId: payment.id,
-      merchantTransactionId: merchantTxnId,
-      totalAmount,
-      successUrl: `${BACKEND_URL}/api/v1/payment/callback/success`,
-      failUrl:    `${BACKEND_URL}/api/v1/payment/callback/fail`,
-      cancelUrl:  `${BACKEND_URL}/api/v1/payment/callback/cancel`,
-      customerName:     owner.ownerName,
-      customerPhone:    owner.mobile,
-      customerEmail:    owner.email ?? '',
-      customerAddress:  'Bangladesh',
-      customerCity:     'Dhaka',
-      customerState:    'Dhaka Division',
-      customerPostcode: '1000',
-      productName:      'BPA Campaign Registration',
-      valueA: payment.id,
-      valueB: 'campaign',
-    });
+    // If payment gateway is not configured/enabled, keep the booking as
+    // pending_payment for admin manual confirmation.
+    if (!isEPSConfigured()) {
+      const reason = process.env.EPS_ENABLED !== 'true'
+        ? 'EPS_ENABLED is not set to true'
+        : process.env.PAYMENT_CHANNEL_MODE !== 'EPS'
+        ? 'PAYMENT_CHANNEL_MODE is not EPS'
+        : 'EPS credentials are incomplete';
+      console.warn(`[BPA] Payment gateway inactive (${reason}) — booking ${registration.bookingNumber} created as pending_payment.`);
+      return { registration, paymentUrl: null, isFree: false, paymentGatewayUnavailable: true };
+    }
 
-    return { registration, paymentUrl: epsResult.RedirectURL, isFree: false };
+    try {
+      const eps = getEPS();
+      const { BACKEND_URL } = await import('../../config').then(m => m.config);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[EPS] Initializing payment for booking ${registration.bookingNumber}, amount=${totalAmount} BDT, merchantTxnId=${merchantTxnId}`);
+      }
+      const epsResult = await eps.initializePayment({
+        customerOrderId: payment.id,
+        merchantTransactionId: merchantTxnId,
+        totalAmount,
+        successUrl: `${BACKEND_URL}/api/v1/payment/callback/success`,
+        failUrl:    `${BACKEND_URL}/api/v1/payment/callback/fail`,
+        cancelUrl:  `${BACKEND_URL}/api/v1/payment/callback/cancel`,
+        customerName:     owner.ownerName,
+        customerPhone:    owner.mobile,
+        customerEmail:    owner.email ?? '',
+        customerAddress:  'Bangladesh',
+        customerCity:     'Dhaka',
+        customerState:    'Dhaka Division',
+        customerPostcode: '1000',
+        productName:      'BPA Campaign Registration',
+        valueA: payment.id,
+        valueB: 'campaign',
+      });
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[EPS] Payment initialized — RedirectURL: ${epsResult.RedirectURL}`);
+      }
+      return { registration, paymentUrl: epsResult.RedirectURL, isFree: false };
+    } catch (epsErr) {
+      // EPS call failed at runtime (network/API error). Keep the booking as
+      // pending_payment — admin can confirm manually. Do NOT release slots.
+      console.error('[BPA] EPS initializePayment failed:', epsErr instanceof Error ? epsErr.message : epsErr);
+      return { registration, paymentUrl: null, isFree: false, paymentGatewayUnavailable: true };
+    }
   } catch (err) {
-    // Rollback slot reservation on failure
+    // Rollback slot reservation on any non-EPS failure
     await repo.releaseSlots(dto.sessionId, dto.petIds.length);
     throw err;
   }

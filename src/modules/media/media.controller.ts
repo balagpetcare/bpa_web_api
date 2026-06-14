@@ -51,3 +51,10 @@ export async function deleteMediaHandler(req: Request, res: Response, next: Next
     sendNoContent(res);
   } catch (e) { next(e); }
 }
+
+export async function cropMediaHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user!.sub;
+    sendCreated(res, await svc.cropMedia(req.params.id, req.body, userId, auditContextFromRequest(req)));
+  } catch (e) { next(e); }
+}

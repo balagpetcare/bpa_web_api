@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { sendSuccess, sendCreated, sendNoContent } from '../../utils/response';
 import { auditContextFromRequest, auditUpdate, auditDelete } from '../../utils/audit';
 import * as svc from './pet-census.service';
-import type { SubmitCensusDto, UpdateCensusDto, CensusListQuery } from './pet-census.types';
+import type { SubmitCensusDto, UpdateCensusDto, CensusListQuery, PublicStatusLookupQuery } from './pet-census.types';
 
 // ─── Admin ───────────────────────────────────────────────────────
 
@@ -28,6 +28,12 @@ export async function getSubmissionHandler(req: Request, res: Response, next: Ne
   } catch (err) { next(err); }
 }
 
+export async function analyticsSummaryHandler(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    sendSuccess(res, await svc.getAnalyticsSummary());
+  } catch (err) { next(err); }
+}
+
 export async function updateSubmissionHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const dto = req.body as UpdateCensusDto;
@@ -45,18 +51,65 @@ export async function deleteSubmissionHandler(req: Request, res: Response, next:
   } catch (err) { next(err); }
 }
 
+// ─── Campaign Management (Admin) ────────────────────────────────
+
+export async function listCampaignsHandler(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    sendSuccess(res, await svc.listCampaigns());
+  } catch (err) { next(err); }
+}
+
+export async function getCampaignHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    sendSuccess(res, await svc.getCampaign(req.params.id));
+  } catch (err) { next(err); }
+}
+
+export async function createCampaignHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    sendCreated(res, await svc.createCampaign(req.body));
+  } catch (err) { next(err); }
+}
+
+export async function updateCampaignHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    sendSuccess(res, await svc.updateCampaign(req.params.id, req.body));
+  } catch (err) { next(err); }
+}
+
 // ─── Public ──────────────────────────────────────────────────────
+
+export async function getPublicCampaignSettingsHandler(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    sendSuccess(res, await svc.getPublicCampaignSettings());
+  } catch (err) { next(err); }
+}
 
 export async function submitCensusHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const dto = req.body as SubmitCensusDto;
     const ipAddress = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ?? req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
-    const result = await svc.submitCensus(dto, ipAddress, userAgent);
+    const result = await svc.submitCensus(dto, req.user?.sub, ipAddress, userAgent);
     sendCreated(res, {
       id: result.submission.id,
       duplicateHint: result.duplicateHint,
       message: 'Thank you. Your Pet Census 2026 information has been submitted for BPA planning.',
     });
+  } catch (err) { next(err); }
+}
+
+export async function submissionStatusLookupHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    sendSuccess(res, await svc.lookupSubmissionStatus(req.query as never as PublicStatusLookupQuery));
+  } catch (err) { next(err); }
+}
+
+export async function uploadPetCensusPhotoHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    sendCreated(
+      res,
+      await svc.uploadPetCensusPhoto(req.file, req.user?.sub, auditContextFromRequest(req)),
+    );
   } catch (err) { next(err); }
 }

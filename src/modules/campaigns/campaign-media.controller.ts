@@ -61,6 +61,37 @@ export async function uploadHandler(req: Request, res: Response, next: NextFunct
   } catch (err) { next(err); }
 }
 
+// POST /admin/campaigns/:id/media/attach (body: { mediaFileId, role, altText? })
+export async function attachHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await assertCampaignExists(req.params.id);
+
+    const bodySchema = z.object({
+      mediaFileId: z.string().uuid(),
+      role: roleSchema,
+      altText: z.string().optional(),
+    });
+
+    const parse = bodySchema.safeParse(req.body);
+    if (!parse.success) throw AppError.badRequest(parse.error.message);
+
+    const { mediaFileId, role, altText } = parse.data;
+
+    // Validate media file exists
+    const mediaFile = await prisma.mediaFile.findUnique({ where: { id: mediaFileId } });
+    if (!mediaFile) throw AppError.notFound('Media file');
+
+    const cm = await repo.createCampaignMedia(
+      req.params.id,
+      mediaFileId,
+      role as CampaignMediaRole,
+      altText,
+    );
+
+    sendCreated(res, cm);
+  } catch (err) { next(err); }
+}
+
 // PATCH /admin/campaigns/:id/media/:mediaId
 export async function updateHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -68,6 +99,7 @@ export async function updateHandler(req: Request, res: Response, next: NextFunct
     if (!cm || cm.campaignId !== req.params.id) throw AppError.notFound('Campaign media');
 
     const updated = await repo.updateCampaignMedia(req.params.mediaId, {
+      mediaFileId: req.body.mediaFileId,
       altText: req.body.altText !== undefined ? req.body.altText : undefined,
       sortOrder: req.body.sortOrder !== undefined ? Number(req.body.sortOrder) : undefined,
     });

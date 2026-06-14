@@ -44,6 +44,11 @@ import { petCensusAdminRouter, petCensusPublicRouter } from './modules/pet-censu
 import { transparencyReportsAdminRouter, transparencyReportsPublicRouter } from './modules/transparency-reports/transparency-reports.router';
 import { petSmartSolutionAdminRouter } from './modules/pet-smart-solution/pet-smart-solution.router';
 import { communityFundAdminRouter, communityFundPublicRouter } from './modules/community-fund/community-fund.router';
+import { carePartnerBenefitsAdminRouter, carePartnerBenefitsPublicRouter } from './modules/care-partner-benefits/care-partner-benefits.router';
+import { socialImpactProgramsAdminRouter, socialImpactProgramsPublicRouter } from './modules/social-impact-programs/social-impact-programs.router';
+import { roadmapItemsAdminRouter, roadmapItemsPublicRouter } from './modules/roadmap-items/roadmap-items.router';
+import { diagnosticCenterServicesAdminRouter, diagnosticCenterServicesPublicRouter } from './modules/diagnostic-center-services/diagnostic-center-services.router';
+import { siteSettingsAdminRouter, siteSettingsPublicRouter } from './modules/site-settings/site-settings.router';
 
 const app = express();
 
@@ -95,7 +100,10 @@ app.use('/uploads', (_req, res, next) => {
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   res.setHeader('Access-Control-Allow-Origin', '*');
   next();
-}, express.static('uploads'));
+}, express.static('uploads'), (_req, res) => {
+  // Fallback for missing files: redirect to a public placeholder or return a specific 404
+  res.redirect('https://placehold.co/400x400?text=File+Missing');
+});
 
 // ─── Routes (Phase 2 CMS) ───────────────────────────────────────
 app.use(`${v1}/news`, newsRouter);
@@ -147,6 +155,20 @@ app.use(`${v1}/public/transparency-reports`, transparencyReportsPublicRouter);
 app.use(`${v1}/admin/pet-smart-solution`, petSmartSolutionAdminRouter);
 app.use(`${v1}/admin/community-fund`, communityFundAdminRouter);
 app.use(`${v1}/public/community-fund`, communityFundPublicRouter);
+
+// ─── Community Pet Care — Enterprise Content (Phase 4) ──────────
+app.use(`${v1}/admin/care-partner-benefits`, carePartnerBenefitsAdminRouter);
+app.use(`${v1}/public/care-partner-benefits`, carePartnerBenefitsPublicRouter);
+app.use(`${v1}/admin/social-impact-programs`, socialImpactProgramsAdminRouter);
+app.use(`${v1}/public/social-impact-programs`, socialImpactProgramsPublicRouter);
+app.use(`${v1}/admin/roadmap-items`, roadmapItemsAdminRouter);
+app.use(`${v1}/public/roadmap-items`, roadmapItemsPublicRouter);
+app.use(`${v1}/admin/diagnostic-center-services`, diagnosticCenterServicesAdminRouter);
+app.use(`${v1}/public/diagnostic-center-services`, diagnosticCenterServicesPublicRouter);
+
+// ─── Site Settings ──────────────────────────────────────────────
+app.use(`${v1}/public/site-settings`, siteSettingsPublicRouter);
+app.use(`${v1}/admin/site-settings`, siteSettingsAdminRouter);
 
 // ─── Error Handling ─────────────────────────────────────────────
 app.use(notFound);

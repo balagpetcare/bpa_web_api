@@ -4,11 +4,26 @@ import { config } from './config';
 import app from './app';
 import { prisma } from './database/prisma';
 import { startCampaignCleanupJob } from './jobs/campaign-cleanup.job';
+import { checkStorageHealth } from './storage/storage.service';
+import { validateEPSStartup } from './services/eps.service';
 
 async function bootstrap(): Promise<void> {
   await prisma.$connect();
   console.log('Database connection established');
 
+  try {
+    await checkStorageHealth();
+    console.log(`Storage backend initialized (${config.STORAGE_DRIVER})`);
+  } catch (err: any) {
+    console.warn(`[WARNING] Storage health check failed: ${err.message}`);
+    if (config.NODE_ENV === 'production') {
+      console.error('CRITICAL: Storage must be healthy in production.');
+      process.exit(1);
+    }
+    console.warn('Continuing in development mode, but media uploads will likely fail.');
+  }
+
+  validateEPSStartup();
   const cleanupTimer = startCampaignCleanupJob();
 
   const server = app.listen(config.PORT, () => {

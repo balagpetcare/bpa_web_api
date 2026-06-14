@@ -17,12 +17,14 @@ export const createCampaignSchema = z.object({
   coverImageId: z.string().uuid().optional(),
   metadata: z.record(z.unknown()).optional(),
   isFeatured: z.boolean().optional(),
+  allowedPetTypes: z.array(z.string().min(1).max(30)).optional(),
   termsAndConditions: z.string().max(10000).optional(),
   faq: z.array(z.object({ question: z.string(), answer: z.string() })).optional(),
 });
 
 export const updateCampaignSchema = z.object({
   title: z.string().min(1).max(255).optional(),
+  slug: z.string().min(1).max(280).regex(/^[a-z0-9-]+$/).optional(),
   description: z.string().max(5000).optional().nullable(),
   campaignType: z.nativeEnum(CampaignType).optional(),
   startDate: z.string().datetime().optional(),
@@ -35,6 +37,7 @@ export const updateCampaignSchema = z.object({
   coverImageId: z.string().uuid().optional().nullable(),
   metadata: z.record(z.unknown()).optional().nullable(),
   isFeatured: z.boolean().optional(),
+  allowedPetTypes: z.array(z.string().min(1).max(30)).optional(),
   termsAndConditions: z.string().max(10000).optional().nullable(),
   faq: z.array(z.object({ question: z.string(), answer: z.string() })).optional().nullable(),
 });
@@ -74,18 +77,18 @@ export const createServiceSchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(1000).optional(),
   vaccineCatalogId: z.string().uuid().optional(),
-  priceOverrideBdt: z.number().min(0).optional(),
   isRequired: z.boolean().default(true),
   sortOrder: z.number().int().min(0).default(0),
+  priceBdt: z.number().int().min(0).optional(),
 });
 
 export const updateServiceSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   description: z.string().max(1000).optional().nullable(),
   vaccineCatalogId: z.string().uuid().optional().nullable(),
-  priceOverrideBdt: z.number().min(0).optional().nullable(),
   isRequired: z.boolean().optional(),
   sortOrder: z.number().int().min(0).optional(),
+  priceBdt: z.number().int().min(0).optional().nullable(),
 });
 
 // ─── Doctor / Volunteer Assignment ────────────────────────────────

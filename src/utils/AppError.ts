@@ -31,4 +31,8 @@ export class AppError extends Error {
   static conflict(message: string): AppError {
     return new AppError(HTTP_STATUS.CONFLICT, 'CONFLICT', message);
   }
+
+  static internal(message: string, code = 'INTERNAL_ERROR'): AppError {
+    return new AppError(HTTP_STATUS.INTERNAL_ERROR, code, message);
+  }
 }

@@ -1,11 +1,13 @@
 import { z } from 'zod';
-import { PetCensusStatus } from '@prisma/client';
+import { PetCensusStatus, PetGender, CampaignStatus } from '@prisma/client';
 
 export const PET_CENSUS_SOURCE = 'PET_CENSUS_2026';
 
 const bdMobile = z.string().regex(/^(\+8801|01)[3-9]\d{8}$/, 'Invalid Bangladeshi mobile number');
 const optionalString = (max: number) => z.string().trim().max(max).optional().or(z.literal('')).transform((v) => v || undefined);
-const petTypeSchema = z.enum(['cat', 'dog', 'bird', 'other']);
+const petTypeSchema = z.enum(['cat', 'dog', 'bird', 'rabbit', 'other']);
+const vaccinationStatusSchema = z.enum(['up_to_date', 'due', 'not_vaccinated', 'unknown']);
+const neuteredStatusSchema = z.enum(['yes', 'no', 'planned', 'unknown']);
 const queryBoolean = z.preprocess((value) => {
   if (value === 'true') return true;
   if (value === 'false') return false;
@@ -18,14 +20,27 @@ const rawSubmitCensusSchema = z.object({
   ownerMobile: bdMobile.optional(),
   ownerEmail: z.string().email().optional().or(z.literal('')).transform((v) => v || undefined),
   email: z.string().email().optional().or(z.literal('')).transform((v) => v || undefined),
+  division: optionalString(120),
+  district: optionalString(120),
+  cityUpazila: optionalString(120),
   ownerAddress: optionalString(500),
   address: optionalString(500),
   zoneId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
   areaText: optionalString(255),
   area: optionalString(255),
+  isBpaMember: z.coerce.boolean().optional(),
   petType: petTypeSchema,
+  petName: optionalString(120),
+  petGender: z.nativeEnum(PetGender).optional(),
+  approxAge: optionalString(80),
   petCount: z.coerce.number().int().min(1).max(999),
+  householdPetCount: z.coerce.number().int().min(1).max(999).optional(),
   breed: optionalString(120),
+  vaccinationStatus: vaccinationStatusSchema.optional(),
+  neuteredStatus: neuteredStatusSchema.optional(),
+  healthIssue: optionalString(1000),
+  photoMediaId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  photoUrl: z.string().url().optional().or(z.literal('')).transform((v) => v || undefined),
   petCountDog: z.coerce.number().int().min(0).max(999).optional(),
   petCountCat: z.coerce.number().int().min(0).max(999).optional(),
   petCountOther: z.coerce.number().int().min(0).max(999).optional(),
@@ -55,18 +70,35 @@ const rawSubmitCensusSchema = z.object({
 export const submitCensusSchema = rawSubmitCensusSchema.transform((data) => {
   const petCountDog = data.petType === 'dog' ? data.petCount : (data.petCountDog ?? 0);
   const petCountCat = data.petType === 'cat' ? data.petCount : (data.petCountCat ?? 0);
-  const petCountOther = data.petType === 'bird' || data.petType === 'other' ? data.petCount : (data.petCountOther ?? 0);
+  const petCountOther = data.petType === 'bird' || data.petType === 'rabbit' || data.petType === 'other'
+    ? data.petCount
+    : (data.petCountOther ?? 0);
+  const normalizedAddress = data.address ?? data.ownerAddress;
+  const normalizedArea = data.area ?? data.areaText ?? normalizedAddress;
 
   return {
     ownerName: data.ownerName,
     ownerMobile: data.mobile ?? data.ownerMobile!,
     ownerEmail: data.email ?? data.ownerEmail,
-    ownerAddress: data.address ?? data.ownerAddress,
+    division: data.division,
+    district: data.district,
+    cityUpazila: data.cityUpazila,
+    ownerAddress: normalizedAddress,
     zoneId: data.zoneId,
-    areaText: data.area ?? data.areaText,
+    areaText: normalizedArea,
+    isBpaMember: data.isBpaMember ?? false,
+    petName: data.petName,
     petType: data.petType,
+    petGender: data.petGender,
+    approxAge: data.approxAge,
     petCount: data.petCount,
+    householdPetCount: data.householdPetCount ?? data.petCount,
     breed: data.breed,
+    vaccinationStatus: data.vaccinationStatus,
+    neuteredStatus: data.neuteredStatus,
+    healthIssue: data.healthIssue,
+    photoMediaId: data.photoMediaId,
+    photoUrl: data.photoUrl,
     petCountDog,
     petCountCat,
     petCountOther,
@@ -93,6 +125,10 @@ export const censusListQuerySchema = z.object({
   status: z.nativeEnum(PetCensusStatus).optional(),
   zoneId: z.string().uuid().optional(),
   petType: petTypeSchema.optional(),
+  division: z.string().optional(),
+  district: z.string().optional(),
+  memberStatus: queryBoolean.optional(),
+  vaccinationStatus: vaccinationStatusSchema.optional(),
   area: z.string().optional(),
   vaccinationInterest: queryBoolean.optional(),
   communityClinicInterest: queryBoolean.optional(),
@@ -103,6 +139,35 @@ export const censusListQuerySchema = z.object({
   search: z.string().optional(),
 });
 
+export const publicStatusLookupSchema = z.object({
+  mobile: bdMobile,
+  petName: optionalString(120),
+});
+
+export type VaccinationStatus = z.infer<typeof vaccinationStatusSchema>;
+export type NeuteredStatus = z.infer<typeof neuteredStatusSchema>;
+
 export type SubmitCensusDto = z.infer<typeof submitCensusSchema>;
 export type UpdateCensusDto = z.infer<typeof updateCensusSchema>;
 export type CensusListQuery = z.infer<typeof censusListQuerySchema>;
+export type PublicStatusLookupQuery = z.infer<typeof publicStatusLookupSchema>;
+
+// ─── Campaign Settings ──────────────────────────────────────────
+
+export const createCampaignSchema = z.object({
+  title: z.string().min(2).max(255),
+  description: z.string().optional(),
+  status: z.nativeEnum(CampaignStatus).default(CampaignStatus.draft),
+  registrationStartAt: z.coerce.date(),
+  registrationEndAt: z.coerce.date(),
+  countdownTargetAt: z.coerce.date().optional(),
+  targetSubmissions: z.coerce.number().int().min(1).default(10000),
+  settings: z.record(z.unknown()).optional(),
+  isActive: z.boolean().default(true),
+});
+
+export const updateCampaignSchema = createCampaignSchema.partial();
+
+export type CreateCampaignDto = z.infer<typeof createCampaignSchema>;
+export type UpdateCampaignDto = z.infer<typeof updateCampaignSchema>;
+

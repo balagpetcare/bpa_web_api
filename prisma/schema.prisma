@@ -242,6 +242,7 @@ model User {
   qrScanLogs             QRScanLog[]
   certificatesIssued     Certificate[]           @relation("CertificateIssuedBy")
   homepageUpdates        Homepage[]              @relation("HomepageUpdatedBy")
+  censusSubmissions      PetCensusSubmission[]
 
   @@map("users")
 }
@@ -543,11 +544,11 @@ model MediaFile {
   sizeBytes    BigInt   @map("size_bytes")
   url          String   @db.Text
   altText      String?  @map("alt_text") @db.VarChar(255)
-  uploadedById String   @map("uploaded_by") @db.Uuid
+  uploadedById String?  @map("uploaded_by") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  uploadedBy           User                  @relation(fields: [uploadedById], references: [id])
+  uploadedBy           User?                 @relation(fields: [uploadedById], references: [id])
   newsCovers           News[]                @relation("NewsCover")
   eventCovers          Event[]               @relation("EventCover")
   committeePhotos      CommitteeMember[]     @relation("CommitteePhoto")
@@ -558,11 +559,12 @@ model MediaFile {
   homepageSectionItems HomepageSectionItem[] @relation("HomepageSectionItemMedia")
   heroDesktopImages    HeroSlide[]           @relation("HeroDesktopImage")
   heroMobileImages     HeroSlide[]           @relation("HeroMobileImage")
-  heroVideos           HeroSlide[]           @relation("HeroVideo")
-  partnerLogos              Partner[]             @relation("PartnerLogo")
-  footerLogos               FooterConfig[]        @relation("FooterLogo")
-  communityZoneCovers       CommunityZone[]       @relation("CommunityZoneCover")
-  transparencyReportCovers  TransparencyReport[]  @relation("TransparencyReportCover")
+    heroVideos           HeroSlide[]           @relation("HeroVideo")
+    partnerLogos              Partner[]             @relation("PartnerLogo")
+    footerLogos               FooterConfig[]        @relation("FooterLogo")
+    communityZoneCovers       CommunityZone[]       @relation("CommunityZoneCover")
+    transparencyReportCovers  TransparencyReport[]  @relation("TransparencyReportCover")
+    petCensusPhotos           PetCensusSubmission[]
 
   @@index([mimeType])
   @@map("media_files")
@@ -1096,6 +1098,7 @@ model Campaign {
   coverImageId          String?        @map("cover_image_id") @db.Uuid
   metadata              Json?
   isFeatured            Boolean        @default(false) @map("is_featured")
+  allowedPetTypes       String[]       @default([]) @map("allowed_pet_types")
   termsAndConditions    String?        @map("terms_and_conditions") @db.Text
   faq                   Json?
   createdById           String         @map("created_by_id") @db.Uuid
@@ -1169,6 +1172,7 @@ model CampaignService {
   description      String?  @db.Text
   isRequired       Boolean  @default(true) @map("is_required")
   sortOrder        Int      @default(0) @map("sort_order")
+  priceBdt         Int?     @map("price_bdt")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -1515,17 +1519,49 @@ model CardVerificationLog {
   @@map("card_verification_logs")
 }
 
+model PetCensusCampaign {
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                 String         @db.VarChar(255)
+  description           String?        @db.Text
+  status                CampaignStatus @default(draft)
+  registrationStartAt   DateTime       @map("registration_start_at") @db.Timestamptz
+  registrationEndAt     DateTime       @map("registration_end_at") @db.Timestamptz
+  countdownTargetAt     DateTime?      @map("countdown_target_at") @db.Timestamptz
+  targetSubmissions     Int            @default(10000) @map("target_submissions")
+  currentSubmissions    Int            @default(0) @map("current_submissions")
+  settings              Json?
+  isActive              Boolean        @default(true) @map("is_active")
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("pet_census_campaigns")
+}
+
 model PetCensusSubmission {
   id                      String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String?         @map("user_id") @db.Uuid
   ownerName               String          @map("owner_name") @db.VarChar(120)
   ownerMobile             String          @map("owner_mobile") @db.VarChar(20)
   ownerEmail              String?         @map("owner_email") @db.VarChar(255)
+  division                String?         @db.VarChar(120)
+  district                String?         @db.VarChar(120)
+  cityUpazila             String?         @map("city_upazila") @db.VarChar(120)
   ownerAddress            String?         @map("owner_address") @db.Text
   zoneId                  String?         @map("zone_id") @db.Uuid
   areaText                String?         @map("area_text") @db.VarChar(255)
+  isBpaMember             Boolean         @default(false) @map("is_bpa_member")
+  petName                 String?         @map("pet_name") @db.VarChar(120)
   petType                 String?         @map("pet_type") @db.VarChar(20)
+  petGender               PetGender?      @map("pet_gender")
+  approxAge               String?         @map("approx_age") @db.VarChar(80)
   petCount                Int             @default(0) @map("pet_count")
+  householdPetCount       Int             @default(1) @map("household_pet_count")
   breed                   String?         @db.VarChar(120)
+  vaccinationStatus       String?         @map("vaccination_status") @db.VarChar(40)
+  neuteredStatus          String?         @map("neutered_status") @db.VarChar(40)
+  healthIssue             String?         @map("health_issue") @db.Text
+  photoMediaId            String?         @map("photo_media_id") @db.Uuid
+  photoUrl                String?         @map("photo_url") @db.Text
   petCountDog             Int             @default(0) @map("pet_count_dog")
   petCountCat             Int             @default(0) @map("pet_count_cat")
   petCountOther           Int             @default(0) @map("pet_count_other")
@@ -1545,11 +1581,20 @@ model PetCensusSubmission {
   submittedAt             DateTime        @default(now()) @map("submitted_at") @db.Timestamptz
   updatedAt               DateTime        @updatedAt @map("updated_at") @db.Timestamptz
 
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  photoMedia MediaFile? @relation(fields: [photoMediaId], references: [id], onDelete: SetNull)
   zone CommunityZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
   @@index([ownerMobile])
   @@index([status, submittedAt])
   @@index([petType])
+  @@index([division])
+  @@index([district])
+  @@index([isBpaMember])
+  @@index([vaccinationStatus])
+  @@index([petName])
+  @@index([photoMediaId])
   @@index([zoneId])
   @@map("pet_census_submissions")
 }
@@ -1578,6 +1623,117 @@ model TransparencyReport {
 
   @@index([status, publishedAt])
   @@map("transparency_reports")
+}
+
+// ─── Community Pet Care — Enterprise Content Enums ──────────────
+
+enum CarePartnerBenefitCategory {
+  SERVICE
+  DISCOUNT
+  MEMBERSHIP
+  WELFARE
+  DIAGNOSTIC
+  DIGITAL
+  FUTURE
+}
+
+enum SocialImpactProgramType {
+  STRAY_TREATMENT
+  FEEDING
+  VACCINATION
+  RESCUE
+  SHELTER
+  LOW_INCOME_SUPPORT
+  EDUCATION
+}
+
+enum RoadmapItemStatus {
+  PLANNED
+  IN_PROGRESS
+  LIVE
+}
+
+enum DiagnosticServiceCategory {
+  LAB
+  IMAGING
+  SPECIALIST
+  EMERGENCY
+  FUTURE_TECH
+}
+
+// ─── Community Pet Care — Enterprise Content Tables ──────────────
+
+model CarePartnerBenefit {
+  id            String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  titleEn       String                     @map("title_en") @db.VarChar(200)
+  titleBn       String                     @map("title_bn") @db.VarChar(200)
+  descriptionEn String?                    @map("description_en") @db.Text
+  descriptionBn String?                    @map("description_bn") @db.Text
+  icon          String?                    @db.VarChar(100)
+  category      CarePartnerBenefitCategory
+  sortOrder     Int                        @default(0) @map("sort_order")
+  isActive      Boolean                    @default(true) @map("is_active")
+  createdAt     DateTime                   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime                   @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([isActive, sortOrder])
+  @@index([category, isActive])
+  @@map("care_partner_benefits")
+}
+
+model SocialImpactProgram {
+  id            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  titleEn       String                  @map("title_en") @db.VarChar(200)
+  titleBn       String                  @map("title_bn") @db.VarChar(200)
+  descriptionEn String?                 @map("description_en") @db.Text
+  descriptionBn String?                 @map("description_bn") @db.Text
+  impactType    SocialImpactProgramType @map("impact_type")
+  icon          String?                 @db.VarChar(100)
+  sortOrder     Int                     @default(0) @map("sort_order")
+  isActive      Boolean                 @default(true) @map("is_active")
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([isActive, sortOrder])
+  @@index([impactType, isActive])
+  @@map("social_impact_programs")
+}
+
+model RoadmapItem {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phase         String            @db.VarChar(80)
+  year          Int
+  titleEn       String            @map("title_en") @db.VarChar(200)
+  titleBn       String            @map("title_bn") @db.VarChar(200)
+  descriptionEn String?           @map("description_en") @db.Text
+  descriptionBn String?           @map("description_bn") @db.Text
+  status        RoadmapItemStatus @default(PLANNED)
+  sortOrder     Int               @default(0) @map("sort_order")
+  isActive      Boolean           @default(true) @map("is_active")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([isActive, sortOrder])
+  @@index([year, status])
+  @@map("roadmap_items")
+}
+
+model DiagnosticCenterService {
+  id            String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  titleEn       String                    @map("title_en") @db.VarChar(200)
+  titleBn       String                    @map("title_bn") @db.VarChar(200)
+  descriptionEn String?                   @map("description_en") @db.Text
+  descriptionBn String?                   @map("description_bn") @db.Text
+  category      DiagnosticServiceCategory
+  icon          String?                   @db.VarChar(100)
+  sortOrder     Int                       @default(0) @map("sort_order")
+  isActive      Boolean                   @default(true) @map("is_active")
+  createdAt     DateTime                  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime                  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([isActive, sortOrder])
+  @@index([category, isActive])
+  @@map("diagnostic_center_services")
 }
 
 model PetSmartSyncSetting {
@@ -1615,4 +1771,49 @@ model PetSmartSyncLog {
   @@index([entityType, entityId])
   @@index([status, startedAt])
   @@map("pet_smart_sync_logs")
+}
+
+// ─── Site Settings ───────────────────────────────────────────────
+
+model SiteSettings {
+  id                       String   @id @default("default")
+  siteName                 String   @default("Bangladesh Pet Association") @map("site_name") @db.VarChar(200)
+  siteTagline              String?  @map("site_tagline") @db.VarChar(300)
+  organizationName         String   @default("Bangladesh Pet Association") @map("organization_name") @db.VarChar(200)
+  // ─── Contact ─────────────────────────────────────────────────────
+  officialPhone            String?  @map("official_phone") @db.VarChar(30)
+  supportPhone             String?  @map("support_phone") @db.VarChar(30)
+  emergencyPhone           String?  @map("emergency_phone") @db.VarChar(30)
+  whatsappNumber           String?  @map("whatsapp_number") @db.VarChar(30)
+  generalEmail             String?  @map("general_email") @db.VarChar(200)
+  supportEmail             String?  @map("support_email") @db.VarChar(200)
+  officeHours              String?  @map("office_hours") @db.VarChar(500)
+  // ─── Address ─────────────────────────────────────────────────────
+  officeAddress            String?  @map("office_address") @db.Text
+  addressLine1             String?  @map("address_line1") @db.VarChar(200)
+  addressLine2             String?  @map("address_line2") @db.VarChar(200)
+  area                     String?  @map("area") @db.VarChar(100)
+  city                     String?  @map("city") @db.VarChar(100)
+  postalCode               String?  @map("postal_code") @db.VarChar(20)
+  country                  String?  @map("country") @db.VarChar(100)
+  mapEmbedUrl              String?  @map("map_embed_url") @db.Text
+  mapLink                  String?  @map("map_link") @db.Text
+  // ─── Branding ────────────────────────────────────────────────────
+  primaryLogoUrl           String?  @map("primary_logo_url") @db.Text
+  secondaryLogoUrl         String?  @map("secondary_logo_url") @db.Text
+  faviconUrl               String?  @map("favicon_url") @db.Text
+  defaultMetaTitle         String?  @map("default_meta_title") @db.VarChar(200)
+  defaultMetaDescription   String?  @map("default_meta_description") @db.Text
+  // ─── Social ──────────────────────────────────────────────────────
+  facebookUrl              String?  @map("facebook_url") @db.Text
+  youtubeUrl               String?  @map("youtube_url") @db.Text
+  linkedinUrl              String?  @map("linkedin_url") @db.Text
+  // ─── Public messages ─────────────────────────────────────────────
+  registrationErrorTitle   String   @default("Online registration temporarily unavailable") @map("registration_error_title") @db.VarChar(300)
+  registrationErrorMessage String   @default("Online registration/payment is temporarily unavailable. Please call BPA support for assistance.") @map("registration_error_message") @db.Text
+  emergencyNotice          String?  @map("emergency_notice") @db.Text
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("site_settings")
 }

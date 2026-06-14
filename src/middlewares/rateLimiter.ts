@@ -1,12 +1,16 @@
 import rateLimit from 'express-rate-limit';
 
-/** 5 submissions per 15 minutes per IP — for public form endpoints */
+/** Public form submission rate limit - Configurable from env */
+const PUBLIC_FORM_WINDOW = parseInt(process.env.PUBLIC_REGISTRATION_RATE_LIMIT_WINDOW_MS || '900000', 10); // Default 15 mins
+const PUBLIC_FORM_MAX = parseInt(process.env.PUBLIC_REGISTRATION_RATE_LIMIT_MAX || (process.env.NODE_ENV === 'development' ? '50' : '5'), 10);
+
+/** submissions per window per IP — for public form endpoints */
 export const publicFormLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
+  windowMs: PUBLIC_FORM_WINDOW,
+  max: PUBLIC_FORM_MAX,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Too many requests. Please try again later.' },
+  message: { success: false, message: 'Too many attempts. Please wait a few minutes before trying again.' },
 });
 
 /** 60 requests per minute — for public read endpoints */

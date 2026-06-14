@@ -1,26 +1,75 @@
+import sharp from 'sharp';
 import { AppError } from '../../utils/AppError';
 import { buildPaginationMeta, parsePaginationQuery } from '../../utils/response';
 import { AuditContext, auditCreate, auditUpdate, auditDelete } from '../../utils/audit';
 import { PaginationMeta } from '../../types';
-import { uploadToStorage, deleteFromStorage } from '../../storage/storage.service';
+import { uploadToStorage, deleteFromStorage, downloadFromStorage, uploadBufferToStorage, verifyFileExists } from '../../storage/storage.service';
 import * as repo from './media.repository';
-import { UpdateMediaDto, MediaListQuery, MediaFileResponse } from './media.types';
+import { UpdateMediaDto, MediaListQuery, MediaFileResponse, CropMediaDto } from './media.types';
 
 type RawFile = Awaited<ReturnType<typeof repo.findMediaById>>;
 
 function format(f: NonNullable<RawFile>): MediaFileResponse {
+  const isMissing = !verifyFileExists(f.filename);
+  
   return {
     id: f.id,
     filename: f.filename,
     originalName: f.originalName,
     mimeType: f.mimeType,
     sizeBytes: f.sizeBytes.toString(),
-    url: f.url,
+    url: isMissing ? 'https://placehold.co/400x400?text=File+Missing' : f.url,
     altText: f.altText,
     uploadedById: f.uploadedById,
     createdAt: f.createdAt,
     updatedAt: f.updatedAt,
+    missing: isMissing,
   };
+}
+
+export async function cropMedia(
+  id: string,
+  dto: CropMediaDto,
+  uploadedById: string | null | undefined,
+  ctx: AuditContext,
+): Promise<MediaFileResponse> {
+  const existing = await repo.findMediaById(id);
+  if (!existing) throw AppError.notFound('MediaFile');
+
+  const buffer = await downloadFromStorage(existing.filename);
+
+  const croppedBuffer = await sharp(buffer)
+    .extract({
+      left: Math.round(dto.x),
+      top: Math.round(dto.y),
+      width: Math.round(dto.width),
+      height: Math.round(dto.height),
+    })
+    .resize(dto.targetWidth, dto.targetHeight)
+    .toBuffer();
+
+  const originalName = existing.originalName;
+  const ext = originalName.split('.').pop();
+  const newName = `${originalName.replace(`.${ext}`, '')}_cropped.${ext}`;
+
+  const { objectKey, url } = await uploadBufferToStorage(croppedBuffer, newName, existing.mimeType);
+
+  const data: Parameters<typeof repo.createMediaFile>[0] = {
+    filename: objectKey,
+    originalName: newName,
+    mimeType: existing.mimeType,
+    sizeBytes: croppedBuffer.length,
+    url,
+  };
+
+  if (uploadedById) {
+    data.uploadedBy = { connect: { id: uploadedById } };
+  }
+
+  const created = await repo.createMediaFile(data);
+
+  await auditCreate('media_file', created.id, { filename: created.filename, url, sourceId: id }, ctx);
+  return format(created);
 }
 
 export async function listMedia(
@@ -43,19 +92,23 @@ export async function getMediaById(id: string): Promise<MediaFileResponse> {
 
 export async function uploadFile(
   file: Express.Multer.File,
-  uploadedById: string,
+  uploadedById: string | null | undefined,
   ctx: AuditContext,
 ): Promise<MediaFileResponse> {
   const { objectKey, url } = await uploadToStorage(file);
-
-  const created = await repo.createMediaFile({
+  const data: Parameters<typeof repo.createMediaFile>[0] = {
     filename: objectKey,
     originalName: file.originalname,
     mimeType: file.mimetype,
     sizeBytes: file.size,
     url,
-    uploadedBy: { connect: { id: uploadedById } },
-  });
+  };
+
+  if (uploadedById) {
+    data.uploadedBy = { connect: { id: uploadedById } };
+  }
+
+  const created = await repo.createMediaFile(data);
 
   await auditCreate('media_file', created.id, { filename: created.filename, url }, ctx);
   return format(created);

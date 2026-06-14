@@ -40,6 +40,12 @@ export const RESOURCES = {
   TRANSPARENCY_REPORTS: 'transparency_reports',
   PET_SMART_SOLUTION: 'pet_smart_solution',
   COMMUNITY_FUND_DASHBOARD: 'community_fund_dashboard',
+  // Community Pet Care — Enterprise Content
+  CARE_PARTNER_BENEFITS: 'care_partner_benefits',
+  SOCIAL_IMPACT_PROGRAMS: 'social_impact_programs',
+  ROADMAP_ITEMS: 'roadmap_items',
+  DIAGNOSTIC_CENTER_SERVICES: 'diagnostic_center_services',
+  SITE_SETTINGS: 'site_settings',
 } as const;
 
 export const ACTIONS = {
