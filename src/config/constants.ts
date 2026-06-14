@@ -46,6 +46,17 @@ export const RESOURCES = {
   ROADMAP_ITEMS: 'roadmap_items',
   DIAGNOSTIC_CENTER_SERVICES: 'diagnostic_center_services',
   SITE_SETTINGS: 'site_settings',
+  // Community Care Membership Engine
+  COMMUNITY_MEMBERSHIP_PROGRAM: 'community_membership_program',
+  COMMUNITY_MEMBERSHIP_TIERS: 'community_membership_tiers',
+  COMMUNITY_MEMBERSHIP_SERVICES: 'community_membership_services',
+  COMMUNITY_MEMBERSHIP_DISCOUNTS: 'community_membership_discounts',
+  COMMUNITY_MEMBERSHIP_BENEFITS: 'community_membership_benefits',
+  COMMUNITY_MEMBERSHIP_PURCHASES: 'community_membership_purchases',
+  COMMUNITY_MEMBERSHIP_CARDS: 'community_membership_cards',
+  COMMUNITY_MEMBERSHIP_UPGRADES: 'community_membership_upgrades',
+  COMMUNITY_MEMBERSHIP_DOCUMENTS: 'community_membership_documents',
+  COMMUNITY_MEMBERSHIP_DASHBOARD: 'community_membership_dashboard',
 } as const;
 
 export const ACTIONS = {

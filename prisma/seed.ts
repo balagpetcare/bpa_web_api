@@ -20,6 +20,12 @@ const RESOURCES = [
   'care_partner_cards', 'card_verification_logs',
   'pet_census', 'transparency_reports', 'pet_smart_solution',
   'community_fund_dashboard',
+  // Community Care Membership Engine
+  'community_membership_program', 'community_membership_tiers',
+  'community_membership_services', 'community_membership_discounts',
+  'community_membership_benefits', 'community_membership_purchases',
+  'community_membership_cards', 'community_membership_upgrades',
+  'community_membership_documents', 'community_membership_dashboard',
 ];
 
 const ACTIONS = [
@@ -75,6 +81,12 @@ async function main(): Promise<void> {
     'care_partner_cards', 'card_verification_logs',
     'pet_census', 'transparency_reports', 'pet_smart_solution',
     'community_fund_dashboard',
+    'community_membership_program', 'community_membership_tiers',
+    'community_membership_services', 'community_membership_discounts',
+    'community_membership_benefits', 'community_membership_purchases',
+    'community_membership_cards', 'community_membership_upgrades',
+    'community_membership_documents', 'community_membership_dashboard',
+    'community_membership_card_verification',
   ];
   const adminPermissions = allPermissions.filter((p) => adminResources.includes(p.resource));
   const adminRole = await prisma.role.upsert({
@@ -230,6 +242,12 @@ async function main(): Promise<void> {
     'care_partner_cards', 'card_verification_logs',
     'pet_census', 'transparency_reports', 'pet_smart_solution',
     'community_fund_dashboard', 'payments', 'analytics', 'sms_logs',
+    'community_membership_program', 'community_membership_tiers',
+    'community_membership_services', 'community_membership_discounts',
+    'community_membership_benefits', 'community_membership_purchases',
+    'community_membership_cards', 'community_membership_upgrades',
+    'community_membership_documents', 'community_membership_dashboard',
+    'community_membership_card_verification',
   ];
   const communityFundAdminActions = ['create', 'read', 'update', 'delete', 'publish', 'manage'];
   const communityFundAdminPermissions = allPermissions.filter(
@@ -411,6 +429,224 @@ async function main(): Promise<void> {
   console.log(`Vaccines seeded: ${vaccines.length}`);
 
   void adminRole; void editorRole; void viewerRole; void campaignManagerRole; void campaignVolunteerRole;
+
+  // ─── Community Care Membership Engine ────────────────────────────
+
+  console.log('Seeding Community Care Membership Program...');
+
+  await prisma.communityMembershipProgram.upsert({
+    where: { id: 'default' },
+    update: {},
+    create: {
+      id: 'default',
+      nameEn: 'Community Care Partnership Program',
+      nameBn: 'কমিউনিটি কেয়ার পার্টনারশিপ প্রোগ্রাম',
+      slug: 'community-care-membership',
+      descriptionEn: 'Join BPA Community Care Partnership Program and get exclusive benefits for your pets.',
+      descriptionBn: 'বিপিএ কমিউনিটি কেয়ার পার্টনারশিপ প্রোগ্রামে যোগ দিন এবং আপনার পোষা প্রাণীর জন্য এক্সক্লুসিভ সুবিধা পান।',
+      offerStartAt: new Date('2026-01-01'),
+      offerEndAt: new Date('2027-12-31'),
+      priceAfterOffer: 'USE_REGULAR_PRICE',
+      offerBannerEn: 'Founding Member Offer — Limited Time!',
+      offerBannerBn: 'প্রতিষ্ঠাতা সদস্য অফার — সীমিত সময়!',
+      isActive: true,
+    },
+  });
+
+  // ─── Tiers ────────────────────────────────────────────────────────
+
+  console.log('Seeding membership tiers...');
+
+  const primaryTier = await prisma.communityMembershipTier.upsert({
+    where: { slug: 'primary' },
+    update: {},
+    create: {
+      nameEn: 'Primary Card', nameBn: 'প্রাইমারি কার্ড', slug: 'primary',
+      launchPriceBdt: 3000, regularPriceBdt: 10000,
+      petLimitMin: 1, petLimitMax: 3, validityMonths: 12,
+      badgeTextEn: 'Best Value', badgeTextBn: 'সেরা মূল্য',
+      shortDescEn: 'Essential care for up to 3 pets with core benefits and service discounts.',
+      shortDescBn: '৩টি পোষা প্রাণীর জন্য প্রয়োজনীয় যত্ন ও পরিষেবা ছাড়।',
+      fullDescEn: 'The Primary Card is perfect for pet owners with up to 3 pets. Enjoy core veterinary services, diagnostics discounts, and digital membership benefits.',
+      fullDescBn: 'প্রাইমারি কার্ডটি ৩টি পর্যন্ত পোষা প্রাণীর মালিকদের জন্য উপযুক্ত। মূল ভেটেরিনারি পরিষেবা, ডায়াগনস্টিক ছাড় এবং ডিজিটাল সদস্যপদ সুবিধা উপভোগ করুন।',
+      cardTheme: 'primary', isActive: true, sortOrder: 1,
+    },
+  });
+
+  const premiumTier = await prisma.communityMembershipTier.upsert({
+    where: { slug: 'premium' },
+    update: {},
+    create: {
+      nameEn: 'Premium Card', nameBn: 'প্রিমিয়াম কার্ড', slug: 'premium',
+      launchPriceBdt: 5000, regularPriceBdt: 18000,
+      petLimitMin: 7, petLimitMax: 10, validityMonths: 12,
+      badgeTextEn: 'Most Popular', badgeTextBn: 'সবচেয়ে জনপ্রিয়',
+      shortDescEn: 'Extended care for up to 10 pets with premium discounts and priority services.',
+      shortDescBn: '১০টি পোষা প্রাণীর জন্য বর্ধিত যত্ন ও প্রিমিয়াম ছাড়।',
+      fullDescEn: 'The Premium Card offers comprehensive coverage for households with up to 10 pets. Includes higher service discounts, priority clinic access, and exclusive social impact program participation.',
+      fullDescBn: 'প্রিমিয়াম কার্ডটি ১০টি পর্যন্ত পোষা প্রাণীর জন্য ব্যাপক কভারেজ অফার করে। উচ্চতর পরিষেবা ছাড়, অগ্রাধিকার ক্লিনিক অ্যাক্সেস এবং এক্সক্লুসিভ সামাজিক প্রভাব প্রোগ্রাম অন্তর্ভুক্ত।',
+      cardTheme: 'premium', isActive: true, sortOrder: 2,
+    },
+  });
+
+  const enterpriseTier = await prisma.communityMembershipTier.upsert({
+    where: { slug: 'enterprise' },
+    update: {},
+    create: {
+      nameEn: 'Enterprise Card', nameBn: 'এন্টারপ্রাইজ কার্ড', slug: 'enterprise',
+      launchPriceBdt: 10000, regularPriceBdt: 30000,
+      petLimitMin: 20, petLimitMax: 50, validityMonths: 12,
+      badgeTextEn: 'Ultimate Care', badgeTextBn: 'আল্টিমেট কেয়ার',
+      shortDescEn: 'Maximum coverage for 20-50 pets with highest discounts and VIP services.',
+      shortDescBn: '২০-৫০টি পোষা প্রাণীর জন্য সর্বোচ্চ কভারেজ ও ভিআইপি পরিষেবা।',
+      fullDescEn: 'The Enterprise Card is designed for breeders, shelters, and multi-pet households. Features maximum service discounts, VIP clinic access, dedicated support, and all future platform benefits.',
+      fullDescBn: 'এন্টারপ্রাইজ কার্ডটি ব্রিডার, শেল্টার এবং বহু-পোষা পরিবারের জন্য ডিজাইন করা হয়েছে। সর্বোচ্চ পরিষেবা ছাড়, ভিআইপি ক্লিনিক অ্যাক্সেস এবং সমস্ত ভবিষ্যত প্ল্যাটফর্ম সুবিধা রয়েছে।',
+      cardTheme: 'enterprise', isActive: true, sortOrder: 3,
+    },
+  });
+
+  // ─── Services ──────────────────────────────────────────────────────
+
+  console.log('Seeding membership services...');
+
+  const serviceData = [
+    { nameEn: 'General Checkup', nameBn: 'সাধারণ চেকআপ', category: 'HEALTH_CHECKUP' as const, basePriceBdt: 500 },
+    { nameEn: 'Vaccination', nameBn: 'টিকা', category: 'VACCINATION' as const, basePriceBdt: 800 },
+    { nameEn: 'Deworming', nameBn: 'কৃমিনাশক', category: 'DEWORMING' as const, basePriceBdt: 300 },
+    { nameEn: 'Microchipping', nameBn: 'মাইক্রোচিপিং', category: 'MICROCHIP' as const, basePriceBdt: 1000 },
+    { nameEn: 'Blood Test', nameBn: 'রক্ত পরীক্ষা', category: 'LAB_TEST' as const, basePriceBdt: 1200 },
+    { nameEn: 'X-Ray', nameBn: 'এক্স-রে', category: 'IMAGING' as const, basePriceBdt: 1500 },
+    { nameEn: 'Ultrasound', nameBn: 'আল্ট্রাসাউন্ড', category: 'IMAGING' as const, basePriceBdt: 2000 },
+    { nameEn: 'Surgery', nameBn: 'অপারেশন', category: 'SURGERY' as const, basePriceBdt: 5000 },
+    { nameEn: 'Grooming', nameBn: 'গ্রুমিং', category: 'GROOMING' as const, basePriceBdt: 600 },
+    { nameEn: 'Emergency Care', nameBn: 'জরুরি সেবা', category: 'EMERGENCY' as const, basePriceBdt: 3000 },
+  ];
+
+  const serviceIds: string[] = [];
+  for (const s of serviceData) {
+    const existing = await prisma.communityMembershipService.findFirst({ where: { nameEn: s.nameEn } });
+    if (existing) { serviceIds.push(existing.id); continue; }
+    const created = await prisma.communityMembershipService.create({
+      data: { ...s, sortOrder: serviceData.indexOf(s) + 1 },
+    });
+    serviceIds.push(created.id);
+  }
+
+  // ─── Discounts ─────────────────────────────────────────────────────
+
+  console.log('Seeding tier service discounts...');
+
+  const services = await prisma.communityMembershipService.findMany({ where: { isActive: true } });
+  const discountConfig = [
+    { tierId: primaryTier.id, discountType: 'PERCENTAGE' as const, discountValue: 15, minDiscount: null, maxDiscount: null },
+    { tierId: premiumTier.id, discountType: 'PERCENTAGE' as const, discountValue: 20, minDiscount: null, maxDiscount: null },
+    { tierId: enterpriseTier.id, discountType: 'PERCENTAGE' as const, discountValue: 25, minDiscount: null, maxDiscount: null },
+  ];
+
+  for (const svc of services) {
+    for (const cfg of discountConfig) {
+      await prisma.communityTierServiceDiscount.upsert({
+        where: { tierId_serviceId: { tierId: cfg.tierId, serviceId: svc.id } },
+        update: { discountValue: cfg.discountValue },
+        create: {
+          tierId: cfg.tierId, serviceId: svc.id,
+          discountType: cfg.discountType, discountValue: cfg.discountValue,
+          minDiscount: cfg.minDiscount, maxDiscount: cfg.maxDiscount,
+        },
+      });
+    }
+  }
+
+  // ─── Benefits ─────────────────────────────────────────────────────
+
+  console.log('Seeding tier benefits...');
+
+  const benefitTemplates = [
+    { titleEn: 'Digital Membership Card', titleBn: 'ডিজিটাল সদস্যপদ কার্ড', icon: 'mdi:card-account-details', tiers: ['primary', 'premium', 'enterprise'] },
+    { titleEn: 'QR Code Verification', titleBn: 'কিউআর কোড ভেরিফিকেশন', icon: 'mdi:qrcode', tiers: ['primary', 'premium', 'enterprise'] },
+    { titleEn: 'Service Discounts', titleBn: 'পরিষেবা ডিসকাউন্ট', icon: 'mdi:percent', tiers: ['primary', 'premium', 'enterprise'] },
+    { titleEn: 'Priority Clinic Access', titleBn: 'অগ্রাধিকার ক্লিনিক অ্যাক্সেস', icon: 'mdi:hospital-box', tiers: ['premium', 'enterprise'] },
+    { titleEn: 'Free Health Checkup', titleBn: 'বিনামূল্যে স্বাস্থ্য পরীক্ষা', icon: 'mdi:stethoscope', tiers: ['premium', 'enterprise'] },
+    { titleEn: 'VIP Support Line', titleBn: 'ভিআইপি সাপোর্ট লাইন', icon: 'mdi:phone-in-talk', tiers: ['enterprise'] },
+    { titleEn: 'Event Priority Registration', titleBn: 'ইভেন্ট অগ্রাধিকার নিবন্ধন', icon: 'mdi:calendar-check', tiers: ['enterprise'] },
+    { titleEn: 'PDF Membership Document', titleBn: 'পিডিএফ সদস্যপদ ডকুমেন্ট', icon: 'mdi:file-document', tiers: ['primary', 'premium', 'enterprise'] },
+  ];
+
+  const tierBySlug: Record<string, any> = { primary: primaryTier, premium: premiumTier, enterprise: enterpriseTier };
+
+  for (const bt of benefitTemplates) {
+    const existing = await prisma.communityMembershipBenefit.findFirst({ where: { titleEn: bt.titleEn } });
+    let benefitId: string;
+    if (existing) {
+      benefitId = existing.id;
+    } else {
+      const benefit = await prisma.communityMembershipBenefit.create({
+        data: { titleEn: bt.titleEn, titleBn: bt.titleBn, icon: bt.icon, sortOrder: benefitTemplates.indexOf(bt) + 1 },
+      });
+      benefitId = benefit.id;
+    }
+    for (const tierSlug of bt.tiers) {
+      const tier = tierBySlug[tierSlug];
+      if (!tier) continue;
+      await prisma.communityTierBenefitMapping.upsert({
+        where: { tierId_benefitId: { tierId: tier.id, benefitId } },
+        update: {},
+        create: { tierId: tier.id, benefitId },
+      });
+    }
+  }
+
+  // ─── Document Templates ──────────────────────────────────────────
+
+  console.log('Seeding default membership documents...');
+
+  const documents = [
+    {
+      documentType: 'terms_and_conditions',
+      titleEn: 'Terms & Conditions', titleBn: 'শর্তাবলী',
+      contentEn: '1. This membership is non-transferable.\n2. Benefits are subject to availability at BPA-partnered clinics.\n3. BPA reserves the right to modify benefits with prior notice.\n4. Membership fees are non-refundable except as per the refund policy.',
+      contentBn: '১. এই সদস্যপদ হস্তান্তরযোগ্য নয়।\n২. সুবিধাগুলি বিপিএ-এর অংশীদার ক্লিনিকগুলিতে প্রাপ্যতা সাপেক্ষে।\n৩. বিপিএ পূর্ব বিজ্ঞপ্তি সহ সুবিধা পরিবর্তনের অধিকার রাখে।\n৪. ফেরত নীতি অনুযায়ী ছাড়া সদস্যপদ ফি ফেরতযোগ্য নয়।',
+    },
+    {
+      documentType: 'refund_policy',
+      titleEn: 'Refund Policy', titleBn: 'ফেরত নীতি',
+      contentEn: 'Membership fees are refundable within 14 days of purchase if no benefits have been utilized. After 14 days, no refund shall be provided. Processing fees may apply.',
+      contentBn: 'কোনো সুবিধা ব্যবহার না করা হলে ক্রয়ের ১৪ দিনের মধ্যে সদস্যপদ ফি ফেরতযোগ্য। ১৪ দিন পর কোন ফেরত প্রদান করা হবে না। প্রক্রিয়াকরণ ফি প্রযোজ্য হতে পারে।',
+    },
+    {
+      documentType: 'service_availability_policy',
+      titleEn: 'Service Availability Policy', titleBn: 'পরিষেবার প্রাপ্যতা নীতি',
+      contentEn: 'Services are provided at BPA-partnered veterinary clinics. Availability varies by location and clinic capacity. Emergency services are subject to clinic availability.',
+      contentBn: 'পরিষেবাগুলি বিপিএ-এর অংশীদার ভেটেরিনারি ক্লিনিকে প্রদান করা হয়। অবস্থান এবং ক্লিনিক সক্ষমতা অনুযায়ী প্রাপ্যতা পরিবর্তিত হয়। জরুরি সেবা ক্লিনিকের প্রাপ্যতা সাপেক্ষে।',
+    },
+    {
+      documentType: 'discount_policy',
+      titleEn: 'Discount Policy', titleBn: 'ডিসকাউন্ট নীতি',
+      contentEn: 'Tier-based discounts apply to listed services at partner clinics. Discounts cannot be combined with other offers. BPA reserves the right to change discount rates with 30 days notice.',
+      contentBn: 'টিয়ার-ভিত্তিক ডিসকাউন্ট অংশীদার ক্লিনিকগুলিতে তালিকাভুক্ত পরিষেবাগুলিতে প্রযোজ্য। ডিসকাউন্ট অন্যান্য অফারের সাথে একত্রিত করা যাবে না। বিপিএ ৩০ দিনের নোটিশে ডিসকাউন্ট হার পরিবর্তনের অধিকার রাখে।',
+    },
+    {
+      documentType: 'welcome_letter',
+      titleEn: 'Welcome to BPA Community Care', titleBn: 'বিপিএ কমিউনিটি কেয়ারে স্বাগতম',
+      contentEn: 'Dear Member,\n\nWelcome to the BPA Community Care Partnership Program! We are delighted to have you as a valued member of our community. Your membership helps us provide better veterinary care for pets across Bangladesh.\n\nYour digital card and benefits are now active. Please keep your card number and QR code secure.\n\nThank you for your support!\n\n— BPA Team',
+      contentBn: 'প্রিয় সদস্য,\n\nবিপিএ কমিউনিটি কেয়ার পার্টনারশিপ প্রোগ্রামে স্বাগতম! আমাদের সম্প্রদায়ের একজন মূল্যবান সদস্য হিসেবে আপনাকে পেয়ে আমরা আনন্দিত। আপনার সদস্যপদ বাংলাদেশ জুড়ে পোষা প্রাণীদের জন্য আরও ভাল ভেটেরিনারি সেবা প্রদানে সহায়তা করে।\n\nআপনার ডিজিটাল কার্ড এবং সুবিধাগুলি এখন সক্রিয়। অনুগ্রহ করে আপনার কার্ড নম্বর এবং কিউআর কোড নিরাপদে রাখুন।\n\nআপনার সমর্থনের জন্য ধন্যবাদ!\n\n— বিপিএ টিম',
+    },
+  ];
+
+  for (const doc of documents) {
+    const existing = await prisma.communityMembershipDocument.findFirst({
+      where: { documentType: doc.documentType, isActive: true },
+    });
+    if (!existing) {
+      await prisma.communityMembershipDocument.create({ data: doc });
+    }
+  }
+
+  console.log('Community Membership Engine seed complete.');
+  console.log('Tiers: Primary (৳3,000 → ৳10,000), Premium (৳5,000 → ৳18,000), Enterprise (৳10,000 → ৳30,000)');
+  console.log(`Services: ${serviceData.length}`);
+  console.log(`Discounts: ${services.length * 3} configured`);
+  console.log('Document templates: 5 types');
 }
 
 main()

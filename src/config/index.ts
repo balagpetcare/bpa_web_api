@@ -64,6 +64,15 @@ const envSchema = z.object({
   // Separate HMAC secret for Care Partner Card QR tokens — must differ from QR_SECRET
   CARE_CARD_QR_SECRET: z.string().default('bpa-care-card-qr-secret-change-in-production!!'),
 
+  // ─── Manual / MFS Payment Config ─────────────────────────────────────────
+  // When PAYMENT_CHANNEL_MODE=MANUAL, these are returned as MFS payment instructions
+  MFS_BKASH_NUMBER: z.string().default('01XXXXXXXXX'),
+  MFS_NAGAD_NUMBER: z.string().default('01XXXXXXXXX'),
+  MFS_ROCKET_NUMBER: z.string().default('01XXXXXXXXX'),
+  MFS_ACCOUNT_HOLDER: z.string().default('Bangladesh Pet Association'),
+  MFS_INSTRUCTIONS_BN: z.string().default('আপনার সদস্যপদ ফি নিচের যে কোনো নম্বরে পাঠিয়ে Transaction ID নিচে সাবমিট করুন।'),
+  MFS_INSTRUCTIONS_EN: z.string().default('Send your membership fee to any of the numbers below and submit the Transaction ID.'),
+
   // ─── Media / File Storage ────────────────────────────────────────────────
   // STORAGE_DRIVER=s3    → S3-compatible (MinIO, AWS S3, DO Spaces, Wasabi, R2)
   // STORAGE_DRIVER=local → local disk ./uploads/ (development fallback)

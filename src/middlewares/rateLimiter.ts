@@ -40,6 +40,16 @@ export const authRefreshLimiter = rateLimit({
   message: { success: false, message: 'Too many requests. Please try again later.' },
 });
 
+/** 3 membership lookups per 10 minutes per IP — prevents card-number + mobile enumeration */
+export const membershipLookupLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: parseInt(process.env.MEMBERSHIP_LOOKUP_RATE_LIMIT_MAX || (process.env.NODE_ENV === 'development' ? '30' : '3'), 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many lookup attempts. Please wait before trying again.' },
+  skipSuccessfulRequests: false,
+});
+
 /** Payment callback endpoints — strict limit to slow down replay/probe attempts */
 export const callbackLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,

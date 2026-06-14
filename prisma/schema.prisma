@@ -511,6 +511,9 @@ model Payment {
   entityType            String?                @map("entity_type") @db.VarChar(30)
   entityId              String?                @map("entity_id") @db.Uuid
 
+  communityMembershipPurchase CommunityMembershipPurchase? @relation("PurchasePayment")
+  communityMembershipUpgrades  CommunityMembershipUpgrade[] @relation("UpgradePayment")
+
   @@index([entityType, entityId])
   @@map("payments")
 }
@@ -1771,6 +1774,315 @@ model PetSmartSyncLog {
   @@index([entityType, entityId])
   @@index([status, startedAt])
   @@map("pet_smart_sync_logs")
+}
+
+// ─── Community Care Membership Engine ──────────────────────────
+
+enum MembershipTierSlug {
+  primary
+  premium
+  enterprise
+}
+
+enum PriceAfterOffer {
+  USE_REGULAR_PRICE
+  HIDE_TIER
+  SHOW_EXPIRED_MESSAGE
+}
+
+enum MembershipPurchaseStatus {
+  pending_payment
+  paid
+  cancelled
+  refunded
+}
+
+enum MembershipCardStatus {
+  pending
+  active
+  expired
+  suspended
+}
+
+enum MembershipUpgradeStatus {
+  pending_payment
+  paid
+  completed
+  cancelled
+  failed
+}
+
+enum MembershipDiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum CommunityServiceCategory {
+  VACCINATION
+  DEWORMING
+  HEALTH_CHECKUP
+  MICROCHIP
+  LAB_TEST
+  IMAGING
+  GROOMING
+  BOARDING
+  TRAINING
+  SURGERY
+  EMERGENCY
+  OTHER
+}
+
+// ─── Membership Program Settings (Singleton) ─────────────────────
+
+model CommunityMembershipProgram {
+  id                String    @id @default("default")
+  nameEn            String    @default("Community Care Partnership Program") @map("name_en") @db.VarChar(200)
+  nameBn            String    @default("কমিউনিটি কেয়ার পার্টনারশিপ প্রোগ্রাম") @map("name_bn") @db.VarChar(200)
+  slug              String    @default("community-care-membership") @unique @db.VarChar(140)
+  descriptionEn     String?   @map("description_en") @db.Text
+  descriptionBn     String?   @map("description_bn") @db.Text
+  // Offer countdown
+  offerStartAt      DateTime? @map("offer_start_at") @db.Timestamptz
+  offerEndAt        DateTime? @map("offer_end_at") @db.Timestamptz
+  priceAfterOffer   PriceAfterOffer @default(USE_REGULAR_PRICE) @map("price_after_offer")
+  offerBannerEn     String?   @map("offer_banner_en") @db.VarChar(300)
+  offerBannerBn     String?   @map("offer_banner_bn") @db.VarChar(300)
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("community_membership_programs")
+}
+
+// ─── Membership Tiers ────────────────────────────────────────────
+
+model CommunityMembershipTier {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nameEn          String             @map("name_en") @db.VarChar(120)
+  nameBn          String             @map("name_bn") @db.VarChar(120)
+  slug            MembershipTierSlug @unique
+  launchPriceBdt  Decimal            @default(3000) @map("launch_price_bdt") @db.Decimal(10, 2)
+  regularPriceBdt Decimal            @default(10000) @map("regular_price_bdt") @db.Decimal(10, 2)
+  petLimitMin     Int                @default(1) @map("pet_limit_min")
+  petLimitMax     Int                @default(3) @map("pet_limit_max")
+  validityMonths  Int                @default(12) @map("validity_months")
+  badgeTextEn     String?            @map("badge_text_en") @db.VarChar(60)
+  badgeTextBn     String?            @map("badge_text_bn") @db.VarChar(60)
+  shortDescEn     String?            @map("short_desc_en") @db.Text
+  shortDescBn     String?            @map("short_desc_bn") @db.Text
+  fullDescEn      String?            @map("full_desc_en") @db.Text
+  fullDescBn      String?            @map("full_desc_bn") @db.Text
+  cardTheme       String?            @default("primary") @map("card_theme") @db.VarChar(60)
+  isActive        Boolean            @default(true) @map("is_active")
+  sortOrder       Int                @default(0) @map("sort_order")
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+
+  serviceDiscounts CommunityTierServiceDiscount[]
+  benefits         CommunityTierBenefitMapping[]
+  purchases        CommunityMembershipPurchase[]
+  upgradesFrom     CommunityMembershipUpgrade[] @relation("UpgradeFromTier")
+  upgradesTo       CommunityMembershipUpgrade[] @relation("UpgradeToTier")
+
+  @@index([isActive, sortOrder])
+  @@map("community_membership_tiers")
+}
+
+// ─── Services ────────────────────────────────────────────────────
+
+model CommunityMembershipService {
+  id          String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nameEn      String                  @map("name_en") @db.VarChar(200)
+  nameBn      String                  @map("name_bn") @db.VarChar(200)
+  category    CommunityServiceCategory
+  basePriceBdt Decimal                @default(0) @map("base_price_bdt") @db.Decimal(10, 2)
+  descriptionEn String?               @map("description_en") @db.Text
+  descriptionBn String?               @map("description_bn") @db.Text
+  isActive    Boolean                 @default(true) @map("is_active")
+  sortOrder   Int                     @default(0) @map("sort_order")
+  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+
+  discounts CommunityTierServiceDiscount[]
+
+  @@index([isActive, sortOrder])
+  @@index([category])
+  @@map("community_membership_services")
+}
+
+// ─── Tier-Service Discounts ─────────────────────────────────────
+
+model CommunityTierServiceDiscount {
+  id            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tierId        String                  @map("tier_id") @db.Uuid
+  serviceId     String                  @map("service_id") @db.Uuid
+  discountType  MembershipDiscountType  @map("discount_type")
+  discountValue Decimal                 @map("discount_value") @db.Decimal(5, 2)
+  minDiscount   Decimal?                @map("min_discount") @db.Decimal(10, 2)
+  maxDiscount   Decimal?                @map("max_discount") @db.Decimal(10, 2)
+  isActive      Boolean                 @default(true) @map("is_active")
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+
+  tier    CommunityMembershipTier    @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  service CommunityMembershipService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([tierId, serviceId])
+  @@map("community_tier_service_discounts")
+}
+
+// ─── Benefits ────────────────────────────────────────────────────
+
+model CommunityMembershipBenefit {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  titleEn       String   @map("title_en") @db.VarChar(200)
+  titleBn       String   @map("title_bn") @db.VarChar(200)
+  descriptionEn String?  @map("description_en") @db.Text
+  descriptionBn String?  @map("description_bn") @db.Text
+  icon          String?  @db.VarChar(100)
+  sortOrder     Int      @default(0) @map("sort_order")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  tierMappings CommunityTierBenefitMapping[]
+
+  @@index([isActive, sortOrder])
+  @@map("community_membership_benefits")
+}
+
+model CommunityTierBenefitMapping {
+  tierId    String @map("tier_id") @db.Uuid
+  benefitId String @map("benefit_id") @db.Uuid
+
+  tier    CommunityMembershipTier    @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  benefit CommunityMembershipBenefit @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+
+  @@id([tierId, benefitId])
+  @@map("community_tier_benefit_mappings")
+}
+
+// ─── Membership Purchase ─────────────────────────────────────────
+
+model CommunityMembershipPurchase {
+  id                String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tierId            String                    @map("tier_id") @db.Uuid
+  paymentId         String?                   @unique @map("payment_id") @db.Uuid
+  memberName        String                    @map("member_name") @db.VarChar(120)
+  memberMobile      String                    @map("member_mobile") @db.VarChar(20)
+  memberEmail       String?                   @map("member_email") @db.VarChar(255)
+  memberAddress     String?                   @map("member_address") @db.Text
+  amountBdt         Decimal                   @map("amount_bdt") @db.Decimal(10, 2)
+  currency          String                    @default("BDT") @db.VarChar(3)
+  status            MembershipPurchaseStatus  @default(pending_payment)
+  petLimit          Int                       @default(3) @map("pet_limit")
+  startsAt          DateTime?                 @map("starts_at") @db.Date
+  expiresAt         DateTime?                 @map("expires_at") @db.Date
+  purchasedAt       DateTime?                 @map("purchased_at") @db.Timestamptz
+  notes             String?                   @db.Text
+  createdAt         DateTime                  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime                  @updatedAt @map("updated_at") @db.Timestamptz
+
+  tier     CommunityMembershipTier @relation(fields: [tierId], references: [id])
+  payment  Payment?                @relation("PurchasePayment", fields: [paymentId], references: [id], onDelete: SetNull)
+  card     CommunityMembershipCard?
+  upgrades CommunityMembershipUpgrade[]
+
+  @@index([tierId])
+  @@index([memberMobile])
+  @@index([status])
+  @@index([createdAt])
+  @@map("community_membership_purchases")
+}
+
+// ─── Membership Card (Digital Card) ──────────────────────────────
+
+model CommunityMembershipCard {
+  id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchaseId         String                @unique @map("purchase_id") @db.Uuid
+  cardNumber         String                @unique @map("card_number") @db.VarChar(30)
+  qrToken            String                @unique @map("qr_token") @db.VarChar(64)
+  status             MembershipCardStatus  @default(active)
+  issuedAt           DateTime?             @map("issued_at") @db.Timestamptz
+  expiresAt          DateTime?             @map("expires_at") @db.Date
+  suspendedAt        DateTime?             @map("suspended_at") @db.Timestamptz
+  suspensionReason   String?               @map("suspension_reason") @db.Text
+  pdfDocumentKey     String?               @map("pdf_document_key") @db.VarChar(500)
+  downloadToken      String?               @map("download_token") @db.Uuid
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime              @updatedAt @map("updated_at") @db.Timestamptz
+
+  purchase CommunityMembershipPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  verificationLogs CommunityMembershipCardVerificationLog[]
+
+  @@index([status])
+  @@index([qrToken])
+  @@map("community_membership_cards")
+}
+
+// ─── Card Verification Log ───────────────────────────────────────
+
+model CommunityMembershipCardVerificationLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cardId     String   @map("card_id") @db.Uuid
+  qrToken    String   @map("qr_token") @db.VarChar(64)
+  scanResult String   @map("scan_result") @db.VarChar(30)
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  card CommunityMembershipCard @relation(fields: [cardId], references: [id])
+
+  @@index([cardId])
+  @@index([createdAt])
+  @@map("community_membership_card_verification_logs")
+}
+
+// ─── Tier Upgrade ────────────────────────────────────────────────
+
+model CommunityMembershipUpgrade {
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchaseId         String                  @map("purchase_id") @db.Uuid
+  fromTierId         String                  @map("from_tier_id") @db.Uuid
+  toTierId           String                  @map("to_tier_id") @db.Uuid
+  paymentId          String?                 @unique @map("payment_id") @db.Uuid
+  upgradeAmountBdt   Decimal                 @map("upgrade_amount_bdt") @db.Decimal(10, 2)
+  originalPaidAmount Decimal                @map("original_paid_amount") @db.Decimal(10, 2)
+  status             MembershipUpgradeStatus @default(pending_payment)
+  completedAt        DateTime?               @map("completed_at") @db.Timestamptz
+  notes              String?                 @db.Text
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+
+  purchase CommunityMembershipPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  fromTier CommunityMembershipTier     @relation("UpgradeFromTier", fields: [fromTierId], references: [id])
+  toTier   CommunityMembershipTier     @relation("UpgradeToTier", fields: [toTierId], references: [id])
+  payment  Payment?                    @relation("UpgradePayment", fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([purchaseId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("community_membership_upgrades")
+}
+
+// ─── PDF Document Templates ─────────────────────────────────────
+
+model CommunityMembershipDocument {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentType  String   @map("document_type") @db.VarChar(60)
+  titleEn       String   @map("title_en") @db.VarChar(200)
+  titleBn       String   @map("title_bn") @db.VarChar(200)
+  contentEn     String?  @map("content_en") @db.Text
+  contentBn     String?  @map("content_bn") @db.Text
+  version       Int      @default(1)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([documentType, version])
+  @@index([documentType, isActive])
+  @@map("community_membership_documents")
 }
 
 // ─── Site Settings ───────────────────────────────────────────────

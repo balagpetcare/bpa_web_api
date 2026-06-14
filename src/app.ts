@@ -170,6 +170,11 @@ app.use(`${v1}/public/diagnostic-center-services`, diagnosticCenterServicesPubli
 app.use(`${v1}/public/site-settings`, siteSettingsPublicRouter);
 app.use(`${v1}/admin/site-settings`, siteSettingsAdminRouter);
 
+// ─── Community Care Membership Engine ──────────────────────────
+import { communityMembershipAdminRouter, communityMembershipPublicRouter } from './modules/community-membership/community-membership.router';
+app.use(`${v1}/admin/community-membership`, communityMembershipAdminRouter);
+app.use(`${v1}/public/community-membership`, communityMembershipPublicRouter);
+
 // ─── Error Handling ─────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);

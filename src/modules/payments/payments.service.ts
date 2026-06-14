@@ -49,13 +49,25 @@ export async function settlePayment(merchantTxnId: string): Promise<'success' | 
 
 // ─── Activate linked entities on payment success ──────────────────
 
-async function activateLinkedEntities(payment: { id: string; entityType: string | null }): Promise<void> {
+async function activateLinkedEntities(payment: { id: string; entityType: string | null; purpose?: string; payload?: any }): Promise<void> {
   if (payment.entityType === 'campaign') {
     await settleCampaignPayment(payment.id);
     return;
   }
   if (payment.entityType === 'care_partner') {
     await issueCarePartnerCardOnPayment(payment.id);
+    return;
+  }
+  // Community Care Membership purchase
+  if (payment.purpose === 'community_membership') {
+    const { handlePaymentSuccess } = await import('../community-membership/community-membership.service');
+    await handlePaymentSuccess(payment.id);
+    return;
+  }
+  // Community Care Membership upgrade
+  if (payment.purpose === 'community_membership_upgrade') {
+    const { handlePaymentSuccess } = await import('../community-membership/community-membership.service');
+    await handlePaymentSuccess(payment.id);
     return;
   }
   // Default: event registrations
@@ -65,7 +77,7 @@ async function activateLinkedEntities(payment: { id: string; entityType: string 
   });
 }
 
-async function deactivateLinkedEntities(payment: { id: string; entityType: string | null }): Promise<void> {
+async function deactivateLinkedEntities(payment: { id: string; entityType: string | null; purpose?: string }): Promise<void> {
   if (payment.entityType === 'campaign') {
     await cancelCampaignPayment(payment.id);
     return;
