@@ -9,6 +9,24 @@ export async function getProgram() {
   return prisma.communityMembershipProgram.findUnique({ where: { id: 'default' } });
 }
 
+export async function getOrCreateDefaultProgram() {
+  const existing = await prisma.communityMembershipProgram.findUnique({ where: { id: 'default' } });
+  if (existing) return existing;
+  return prisma.communityMembershipProgram.create({
+    data: {
+      id: 'default',
+      nameEn: 'BPA Community Care Partner Card Program',
+      nameBn: 'বিপিএ কমিউনিটি কেয়ার পার্টনার কার্ড প্রোগ্রাম',
+      slug: 'community-care-partner-card',
+      descriptionEn: 'Join BPA Community Care Partner Card Program and get exclusive benefits for your pets.',
+      descriptionBn: 'বিপিএ কমিউনিটি কেয়ার পার্টনার কার্ড প্রোগ্রামে যোগ দিন এবং আপনার পোষা প্রাণীর জন্য এক্সক্লুসিভ সুবিধা পান।',
+      cardValidityLabel: '5-Year Card Validity',
+      legalDisclaimer: 'BPA Community Care Partner Card is a service benefit card only. It does not represent ownership, equity, profit-sharing, investment, or financial return. Service discounts and third-party benefits are subject to availability and partner terms. Clinic zone establishment is subject to sufficient member demand and BPA operational planning.',
+      isActive: true,
+    },
+  });
+}
+
 export async function upsertProgram(data: Prisma.CommunityMembershipProgramUpdateInput) {
   return prisma.communityMembershipProgram.upsert({
     where: { id: 'default' },
@@ -446,14 +464,22 @@ export async function getZoneDemandStats() {
     select: {
       id: true,
       name: true,
+      nameBn: true,
       slug: true,
       city: true,
       district: true,
       status: true,
+      clinicStatus: true,
+      targetMembers: true,
+      priorityOrder: true,
       _count: { select: { membershipPurchases: true } },
       membershipPurchases: {
         where: { status: 'paid' },
-        select: { id: true },
+        select: {
+          id: true,
+          amountBdt: true,
+          card: { select: { status: true } },
+        },
       },
     },
     orderBy: { sortOrder: 'asc' },
@@ -462,21 +488,39 @@ export async function getZoneDemandStats() {
   const withScores = zones.map((z) => {
     const paidPurchases = z.membershipPurchases.length;
     const pendingPurchases = z._count.membershipPurchases - paidPurchases;
-    const demandScore = paidPurchases * 2 + pendingPurchases;
+    const activeCards = z.membershipPurchases.filter((p) => p.card?.status === 'active').length;
+    const totalRevenueBdt = z.membershipPurchases.reduce((sum, p) => sum + Number(p.amountBdt), 0);
+    // Active card holders weighted highest: each active card = 3, each paid purchase = 2, each pending = 1
+    const demandScore = activeCards * 3 + paidPurchases * 2 + pendingPurchases;
+    const progressPercent = z.targetMembers && z.targetMembers > 0
+      ? Math.min(100, Math.round((paidPurchases / z.targetMembers) * 100))
+      : null;
     return {
       id: z.id,
       name: z.name,
+      nameBn: z.nameBn,
       slug: z.slug,
       city: z.city,
       district: z.district,
       status: z.status,
+      clinicStatus: z.clinicStatus,
+      targetMembers: z.targetMembers,
+      priorityOrder: z.priorityOrder,
       paidPurchases,
       totalPurchases: z._count.membershipPurchases,
+      activeCards,
+      totalRevenueBdt,
       demandScore,
+      progressPercent,
     };
   });
 
-  withScores.sort((a, b) => b.demandScore - a.demandScore || b.totalPurchases - a.totalPurchases);
+  // Rank by active card holders first, then paid purchases, then total (pending included)
+  withScores.sort((a, b) =>
+    b.activeCards - a.activeCards ||
+    b.paidPurchases - a.paidPurchases ||
+    b.totalPurchases - a.totalPurchases,
+  );
 
   return withScores.map((z, i) => ({ ...z, rank: i + 1 }));
 }

@@ -9,6 +9,7 @@ import { createCommunityZoneSchema, updateCommunityZoneSchema, communityZoneList
 import {
   createZoneHandler, listZonesHandler, getZoneHandler,
   updateZoneHandler, deleteZoneHandler,
+  getDemandRankingHandler,
   listActiveZonesPublicHandler, getZoneBySlugHandler,
 } from './community-zones.controller';
 
@@ -16,6 +17,7 @@ const adminRouter = Router();
 adminRouter.use(authenticate);
 
 adminRouter.get('/', authorize(RESOURCES.COMMUNITY_ZONES, ACTIONS.READ), validate(communityZoneListQuerySchema, 'query'), listZonesHandler);
+adminRouter.get('/demand-ranking', authorize(RESOURCES.COMMUNITY_ZONES, ACTIONS.READ), getDemandRankingHandler);
 adminRouter.post('/', authorize(RESOURCES.COMMUNITY_ZONES, ACTIONS.CREATE), validate(createCommunityZoneSchema), createZoneHandler);
 adminRouter.get('/:id', validateUuid('id'), authorize(RESOURCES.COMMUNITY_ZONES, ACTIONS.READ), getZoneHandler);
 adminRouter.patch('/:id', validateUuid('id'), authorize(RESOURCES.COMMUNITY_ZONES, ACTIONS.UPDATE), validate(updateCommunityZoneSchema), updateZoneHandler);

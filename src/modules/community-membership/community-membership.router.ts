@@ -10,7 +10,7 @@ import {
   createServiceSchema, updateServiceSchema,
   createDiscountSchema,
   createBenefitSchema, updateBenefitSchema,
-  initiatePurchaseSchema, purchaseListQuerySchema,
+  initiatePublicPurchaseSchema, purchaseListQuerySchema,
   upgradeQuoteSchema, upgradeRequestSchema, upgradeListQuerySchema,
   createDocumentSchema, updateDocumentSchema,
   verifyCardQuerySchema,
@@ -20,7 +20,7 @@ import {
   getDashboardHandler,
   getProgramHandler, updateProgramHandler,
   getPublicOverviewHandler,
-  listTiersHandler, getTierHandler, getTierBySlugHandler,
+  listTiersHandler, getTierHandler, getTierBySlugHandler, listPublicTiersHandler,
   createTierHandler, updateTierHandler, deleteTierHandler,
   listServicesHandler, createServiceHandler, updateServiceHandler, deleteServiceHandler,
   listDiscountsHandler, upsertDiscountHandler, deleteDiscountHandler,
@@ -102,10 +102,10 @@ const publicRouter = Router();
 
 publicRouter.get('/overview', publicReadLimiter, getPublicOverviewHandler);
 publicRouter.get('/zone-demand', publicReadLimiter, getZoneDemandHandler);
-publicRouter.get('/tiers', publicReadLimiter, listTiersHandler);
+publicRouter.get('/tiers', publicReadLimiter, listPublicTiersHandler);
 publicRouter.get('/tiers/:slug', publicReadLimiter, getTierBySlugHandler);
 publicRouter.get('/services', publicReadLimiter, listServicesHandler);
-publicRouter.post('/purchase', publicFormLimiter, validate(initiatePurchaseSchema), initiatePurchaseHandler);
+publicRouter.post('/purchase', publicFormLimiter, validate(initiatePublicPurchaseSchema), initiatePurchaseHandler);
 publicRouter.get('/verify', publicReadLimiter, validate(verifyCardQuerySchema, 'query'), verifyCardHandler);
 publicRouter.post('/lookup', membershipLookupLimiter, validate(lookupMembershipSchema), lookupMembershipHandler);
 publicRouter.post('/upgrade/quote', publicFormLimiter, validate(upgradeQuoteSchema), getUpgradeQuoteHandler);

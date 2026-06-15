@@ -102,6 +102,11 @@ export const initiatePurchaseSchema = z.object({
   preferredZoneId: z.string().uuid().optional(),
 });
 
+// Zone is required for public purchases — every member vote counts
+export const initiatePublicPurchaseSchema = initiatePurchaseSchema.extend({
+  preferredZoneId: z.string().uuid('Please select your preferred clinic zone'),
+});
+
 export const purchaseListQuerySchema = z.object({
   page: z.coerce.number().positive().optional(),
   limit: z.coerce.number().positive().max(100).optional(),
@@ -196,6 +201,7 @@ export type UpdateDiscountDto = z.infer<typeof updateDiscountSchema>;
 export type CreateBenefitDto = z.infer<typeof createBenefitSchema>;
 export type UpdateBenefitDto = z.infer<typeof updateBenefitSchema>;
 export type InitiatePurchaseDto = z.infer<typeof initiatePurchaseSchema>;
+export type InitiatePublicPurchaseDto = z.infer<typeof initiatePublicPurchaseSchema>;
 export type PurchaseListQuery = z.infer<typeof purchaseListQuerySchema>;
 export type UpgradeQuoteDto = z.infer<typeof upgradeQuoteSchema>;
 export type UpgradeRequestDto = z.infer<typeof upgradeRequestSchema>;

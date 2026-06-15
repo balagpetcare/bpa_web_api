@@ -20,6 +20,12 @@ export async function listZonesHandler(req: Request, res: Response, next: NextFu
   } catch (err) { next(err); }
 }
 
+export async function getDemandRankingHandler(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    sendSuccess(res, await svc.getDemandRanking());
+  } catch (err) { next(err); }
+}
+
 export async function getZoneHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     sendSuccess(res, await svc.getZone(req.params.id));

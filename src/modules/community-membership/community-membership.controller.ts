@@ -22,7 +22,10 @@ export async function getDashboardHandler(_req: Request, res: Response, next: Ne
 // ─── Program ─────────────────────────────────────────────────────
 
 export async function getProgramHandler(_req: Request, res: Response, next: NextFunction) {
-  try { sendSuccess(res, await repo.getProgram()); }
+  try {
+    const program = await repo.getOrCreateDefaultProgram();
+    sendSuccess(res, program);
+  }
   catch (err) { next(err); }
 }
 
@@ -50,6 +53,19 @@ export async function listTiersHandler(req: Request, res: Response, next: NextFu
   } catch (err) { next(err); }
 }
 
+export async function listPublicTiersHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await repo.listTiers(req.query as any);
+    const items = result.items.map((tier: any) => ({
+      ...tier,
+      benefits: (tier.benefits ?? []).map((b: any) => ({
+        ...(b.benefit ?? b),
+      })),
+    }));
+    sendSuccess(res, items, 200, result.meta);
+  } catch (err) { next(err); }
+}
+
 export async function getTierHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const tier = await repo.getTierById(req.params.id);
@@ -62,7 +78,14 @@ export async function getTierBySlugHandler(req: Request, res: Response, next: Ne
   try {
     const tier = await repo.getTierBySlug(req.params.slug);
     if (!tier) { sendSuccess(res, null, 404); return; }
-    sendSuccess(res, tier);
+    // Map benefits flat for public API — nested { benefit: { titleEn } } → { titleEn }
+    const mapped = {
+      ...tier,
+      benefits: (tier.benefits ?? []).map((b: any) => ({
+        ...(b.benefit ?? b),
+      })),
+    };
+    sendSuccess(res, mapped);
   } catch (err) { next(err); }
 }
 

@@ -21,7 +21,7 @@ export interface TierWithPrice {
 }
 
 export async function computeTierPrice(tier: { launchPriceBdt: any; regularPriceBdt: any }): Promise<TierWithPrice> {
-  const program = await repo.getProgram();
+  const program = await repo.getOrCreateDefaultProgram();
   const now = new Date();
   let isOfferActive = false;
   let offerRemainingSeconds = 0;
@@ -60,7 +60,7 @@ function generateQrToken(purchaseId: string, tierId: string): string {
 // ─── Public: Get overview with all tiers, services, discounts ─────
 
 export async function getPublicOverview() {
-  const program = await repo.getProgram();
+  const program = await repo.getOrCreateDefaultProgram();
   const tiers = await repo.listTiersPublic();
   const services = await repo.listServices(false);
   const discounts = await repo.listDiscounts(false);
@@ -132,6 +132,8 @@ export async function getPublicOverview() {
       priceAfterOffer: program.priceAfterOffer,
       offerBannerEn: program.offerBannerEn,
       offerBannerBn: program.offerBannerBn,
+      legalDisclaimer: program.legalDisclaimer,
+      cardValidityLabel: program.cardValidityLabel,
       isOfferActive,
       offerRemainingSeconds,
     } : null,

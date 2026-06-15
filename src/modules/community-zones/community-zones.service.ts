@@ -10,8 +10,22 @@ export async function listZones(query: CommunityZoneListQuery) {
   return repo.listZones(query);
 }
 
+export async function getDemandRanking() {
+  return repo.getDemandRanking();
+}
+
 export async function listActiveZonesPublic() {
-  return repo.listActiveZonesPublic();
+  const zones = await repo.listActiveZonesPublic();
+
+  // Sort: explicit priorityOrder first (ascending), then by paidMemberCount desc
+  const sorted = [...zones].sort((a, b) => {
+    const aP = a.priorityOrder ?? Infinity;
+    const bP = b.priorityOrder ?? Infinity;
+    if (aP !== bP) return aP - bP;
+    return b.paidMemberCount - a.paidMemberCount;
+  });
+
+  return sorted.map((z, i) => ({ ...z, rank: i + 1 }));
 }
 
 export async function getZone(id: string) {

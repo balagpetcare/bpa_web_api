@@ -170,6 +170,14 @@ enum CommunityZoneStatus {
   coming_soon
 }
 
+enum ZoneClinicStatus {
+  planned
+  priority
+  in_progress
+  active
+  paused
+}
+
 enum ContributionType {
   care_partner
 }
@@ -1401,6 +1409,7 @@ model VaccinationRecord {
 model CommunityZone {
   id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                String              @db.VarChar(120)
+  nameBn              String?             @map("name_bn") @db.VarChar(120)
   slug                String              @unique @db.VarChar(140)
   description         String?             @db.Text
   city                String              @default("Dhaka") @db.VarChar(120)
@@ -1410,6 +1419,7 @@ model CommunityZone {
   currentContributors Int                 @default(0) @map("current_contributors")
   targetAmountBdt     Decimal             @default(30000000) @map("target_amount_bdt") @db.Decimal(14, 2)
   currentAmountBdt    Decimal             @default(0) @map("current_amount_bdt") @db.Decimal(14, 2)
+  targetMembers       Int?                @map("target_members")
   clinicAddress       String?             @map("clinic_address") @db.Text
   clinicPhone         String?             @map("clinic_phone") @db.VarChar(20)
   mapEmbedUrl         String?             @map("map_embed_url") @db.Text
@@ -1417,8 +1427,12 @@ model CommunityZone {
   longitude           Decimal?            @db.Decimal(9, 6)
   coverImageId        String?             @map("cover_image_id") @db.Uuid
   sortOrder           Int                 @default(0) @map("sort_order")
+  priorityOrder       Int?                @map("priority_order")
   status              CommunityZoneStatus @default(active)
+  clinicStatus        ZoneClinicStatus    @default(planned) @map("clinic_status")
   isActive            Boolean             @default(true) @map("is_active")
+  publicVisible       Boolean             @default(true) @map("public_visible")
+  expectedLaunchNote  String?             @map("expected_launch_note") @db.Text
   createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -1848,6 +1862,8 @@ model CommunityMembershipProgram {
   priceAfterOffer   PriceAfterOffer @default(USE_REGULAR_PRICE) @map("price_after_offer")
   offerBannerEn     String?   @map("offer_banner_en") @db.VarChar(300)
   offerBannerBn     String?   @map("offer_banner_bn") @db.VarChar(300)
+  legalDisclaimer   String?   @map("legal_disclaimer") @db.Text
+  cardValidityLabel String?   @map("card_validity_label") @db.VarChar(120)
   isActive          Boolean   @default(true) @map("is_active")
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
