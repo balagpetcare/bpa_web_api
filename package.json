@@ -11,6 +11,7 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:prod": "prisma migrate deploy",
     "db:seed": "ts-node prisma/seed.ts",
+    "seed:root-admin": "ts-node -r dotenv/config prisma/seed-root-admin.ts",
     "db:studio": "prisma studio",
     "storage:test": "ts-node -r dotenv/config scripts/test_storage.ts",
     "typecheck": "tsc --noEmit"
