@@ -9,12 +9,18 @@ import { campaignListQuerySchema } from './campaigns.types';
 
 const router = Router();
 
-// Public-safe statuses (excludes draft)
+// All statuses visible to the public (excludes draft/cancelled)
 const PUBLIC_STATUSES: CampaignStatus[] = [
   CampaignStatus.published,
   CampaignStatus.registration_open,
   CampaignStatus.registration_closed,
   CampaignStatus.completed,
+];
+
+// Default listing shows only actively open/upcoming campaigns
+const ACTIVE_PUBLIC_STATUSES: CampaignStatus[] = [
+  CampaignStatus.published,
+  CampaignStatus.registration_open,
 ];
 
 // GET /api/v1/public/campaigns/featured
@@ -38,19 +44,29 @@ router.get(
   validate(campaignListQuerySchema, 'query'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const now = new Date();
       const query = req.query as never as import('./campaigns.types').CampaignListQuery;
-      // Enforce public-safe status filter
-      if (!query.status || !PUBLIC_STATUSES.includes(query.status as CampaignStatus)) {
-        query.status = undefined; // will be overridden below
+      const requestedStatus = (query.status && PUBLIC_STATUSES.includes(query.status as CampaignStatus))
+        ? (query.status as CampaignStatus)
+        : undefined;
+
+      const result = await repo.listCampaigns({ ...query, status: requestedStatus });
+
+      let items = result.items.filter(c => PUBLIC_STATUSES.includes(c.status as CampaignStatus));
+
+      if (!requestedStatus) {
+        // Default: only show active/upcoming campaigns, filter out expired registration windows
+        items = items.filter(c =>
+          ACTIVE_PUBLIC_STATUSES.includes(c.status as CampaignStatus) &&
+          (c.registrationCloseAt === null || new Date(c.registrationCloseAt) > now),
+        );
+      } else if (requestedStatus === CampaignStatus.registration_open) {
+        // Even when explicitly filtering registration_open, exclude expired windows
+        items = items.filter(c =>
+          c.registrationCloseAt === null || new Date(c.registrationCloseAt) > now,
+        );
       }
-      const result = await repo.listCampaigns({
-        ...query,
-        status: (query.status && PUBLIC_STATUSES.includes(query.status as CampaignStatus))
-          ? (query.status as CampaignStatus)
-          : undefined,
-      });
-      // Strip drafts from results
-      const items = result.items.filter(c => PUBLIC_STATUSES.includes(c.status as CampaignStatus));
+
       sendSuccess(res, items, 200, result.meta);
     } catch (err) {
       next(err);

@@ -26,11 +26,10 @@ export async function computeTierPrice(tier: { launchPriceBdt: any; regularPrice
   let isOfferActive = false;
   let offerRemainingSeconds = 0;
 
-  if (program?.offerStartAt && program?.offerEndAt) {
-    if (now >= program.offerStartAt && now <= program.offerEndAt) {
-      isOfferActive = true;
-      offerRemainingSeconds = Math.max(0, Math.floor((program.offerEndAt.getTime() - now.getTime()) / 1000));
-    }
+  // Only offerEndAt gates offer activation. offerStartAt is informational only.
+  if (program?.offerEndAt && now <= program.offerEndAt) {
+    isOfferActive = true;
+    offerRemainingSeconds = Math.max(0, Math.floor((program.offerEndAt.getTime() - now.getTime()) / 1000));
   }
 
   const launchPrice = Number(tier.launchPriceBdt);
@@ -69,11 +68,9 @@ export async function getPublicOverview() {
 
   let isOfferActive = false;
   let offerRemainingSeconds = 0;
-  if (program?.offerStartAt && program?.offerEndAt) {
-    if (now >= program.offerStartAt && now <= program.offerEndAt) {
-      isOfferActive = true;
-      offerRemainingSeconds = Math.max(0, Math.floor((program.offerEndAt.getTime() - now.getTime()) / 1000));
-    }
+  if (program?.offerEndAt && now <= program.offerEndAt) {
+    isOfferActive = true;
+    offerRemainingSeconds = Math.max(0, Math.floor((program.offerEndAt.getTime() - now.getTime()) / 1000));
   }
 
   const tiersWithPrices = tiers.map((t) => {

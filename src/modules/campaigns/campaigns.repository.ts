@@ -101,21 +101,30 @@ export async function listCampaigns(query: CampaignListQuery) {
 
 export async function listFeaturedCampaigns() {
   const now = new Date();
+  // Only campaigns whose registration window is still open (or has no close date set)
+  const activeRegistrationFilter = {
+    status: CampaignStatus.registration_open,
+    OR: [
+      { registrationCloseAt: null },
+      { registrationCloseAt: { gt: now } },
+    ],
+  } satisfies Prisma.CampaignWhereInput;
+
   const [featured, registrationOpen, upcoming] = await Promise.all([
     prisma.campaign.findMany({
-      where: { isFeatured: true, status: { notIn: ['draft', 'cancelled'] } },
+      where: { isFeatured: true, ...activeRegistrationFilter },
       orderBy: { startDate: 'asc' },
       take: 3,
       include: campaignInclude,
     }),
     prisma.campaign.findMany({
-      where: { status: 'registration_open' },
+      where: activeRegistrationFilter,
       orderBy: { registrationCloseAt: 'asc' },
       take: 6,
       include: campaignInclude,
     }),
     prisma.campaign.findMany({
-      where: { status: 'published', startDate: { gte: now } },
+      where: { status: CampaignStatus.published, startDate: { gte: now } },
       orderBy: { startDate: 'asc' },
       take: 6,
       include: campaignInclude,

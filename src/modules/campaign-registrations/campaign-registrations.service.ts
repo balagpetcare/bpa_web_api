@@ -20,6 +20,10 @@ export async function registerForCampaign(dto: RegisterCampaignDto) {
   if (campaign.status !== 'registration_open') {
     throw AppError.badRequest('Campaign is not open for registration');
   }
+  const now = new Date();
+  if (campaign.registrationCloseAt && new Date(campaign.registrationCloseAt) <= now) {
+    throw AppError.badRequest('Online registration is closed for this campaign.');
+  }
   if (dto.petIds.length > campaign.maxPetsPerBooking) {
     throw AppError.badRequest(`Maximum ${campaign.maxPetsPerBooking} pets per booking`);
   }
