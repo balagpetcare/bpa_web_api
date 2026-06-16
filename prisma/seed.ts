@@ -163,13 +163,13 @@ async function main(): Promise<void> {
   });
 
   console.log('Seeding super admin user...');
-  const passwordHash = await bcrypt.hash('Admin@1234', 12);
+  const passwordHash = await bcrypt.hash('bg13051049', 12);
   await prisma.user.upsert({
     where: { email: 'admin@bpa.org' },
     update: {},
     create: {
       name: 'BPA Super Admin',
-      email: 'admin@bpa.org',
+      email: 'balagpetcare',
       passwordHash,
       isActive: true,
       userRoles: { create: { roleId: superAdminRole.id } },
