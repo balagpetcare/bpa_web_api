@@ -6,7 +6,12 @@
 
 -- ─── New Enum ──────────────────────────────────────────────────────────────────
 
-CREATE TYPE IF NOT EXISTS "CampaignMediaRole" AS ENUM ('hero', 'thumbnail', 'mobile_banner', 'gallery');
+DO $$
+BEGIN
+  CREATE TYPE "CampaignMediaRole" AS ENUM ('hero', 'thumbnail', 'mobile_banner', 'gallery');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ─── campaign_media ────────────────────────────────────────────────────────────
 -- Gallery / hero / thumbnail media assets linked to a campaign.
