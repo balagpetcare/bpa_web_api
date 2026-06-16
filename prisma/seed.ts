@@ -163,17 +163,27 @@ async function main(): Promise<void> {
   });
 
   console.log('Seeding super admin user...');
-  const passwordHash = await bcrypt.hash('bg13051049', 12);
-  await prisma.user.upsert({
-    where: { email: 'admin@bpa.org' },
-    update: {},
+  // email must be lowercase and identical in where + create, otherwise upsert
+  // never matches the row it just created → P2002 on every subsequent run.
+  const adminEmail = 'admin@bpa.org';
+  const passwordHash = await bcrypt.hash('Admin@1234', 12);
+
+  const superAdminUser = await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: {},   // never overwrite a changed password on re-seed
     create: {
       name: 'BPA Super Admin',
-      email: 'balagpetcare',
+      email: adminEmail,
       passwordHash,
       isActive: true,
-      userRoles: { create: { roleId: superAdminRole.id } },
     },
+  });
+
+  // Upsert role separately so it is idempotent even when the user already existed.
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: superAdminUser.id, roleId: superAdminRole.id } },
+    update: {},
+    create: { userId: superAdminUser.id, roleId: superAdminRole.id },
   });
 
   console.log('Seeding news categories and tags...');
@@ -424,7 +434,7 @@ async function main(): Promise<void> {
   console.log('─────────────────────────────────────────────');
   console.log('Seed complete.');
   console.log('Roles: super_admin, admin, editor, viewer, campaign_manager, campaign_volunteer');
-  console.log('Default admin: admin@bpa.org / Admin@1234');
+  console.log(`Default admin: ${adminEmail} / Admin@1234`);
   console.log(`Location: Bangladesh › Dhaka › Dhaka District › DNCC (10 zones) + DSCC (10 zones)`);
   console.log(`Vaccines seeded: ${vaccines.length}`);
 
