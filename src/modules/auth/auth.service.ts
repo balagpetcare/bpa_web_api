@@ -179,21 +179,15 @@ type UserWithRoles = Awaited<ReturnType<typeof prisma.user.findFirst>> & {
 
 async function issueTokenPair(user: NonNullable<UserWithRoles>): Promise<AuthResponse> {
   const roles = user.userRoles.map((ur) => ur.role.name);
-  const permissions = [
-    ...new Set(
-      user.userRoles.flatMap((ur) =>
-        ur.role.rolePermissions.map(
-          (rp) => `${rp.permission.resource}:${rp.permission.action}`,
-        ),
-      ),
-    ),
-  ];
-
+  // permissions are NOT put in the JWT.
+  // A super_admin has 100+ permissions; signing them into the token produces ~32 KB,
+  // which exceeds Nginx's upstream header buffer and NextAuth's cookie limit → 502.
+  // The login response includes permissions via formatMeResponse() for UI bootstrap.
+  // authorize() fetches them from DB on demand for non-super-admin users.
   const accessPayload: AuthPayload = {
     sub: user.id,
     email: user.email,
     roles,
-    permissions,
   };
 
   const accessToken = signAccessToken(accessPayload);

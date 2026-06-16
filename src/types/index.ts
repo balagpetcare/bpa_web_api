@@ -4,7 +4,11 @@ export interface AuthPayload {
   sub: string;
   email: string;
   roles: string[];
-  permissions: string[];
+  // permissions intentionally excluded from the JWT.
+  // A super_admin with 100+ permissions produces a ~32 KB token, which exceeds
+  // Nginx's proxy_buffer / NextAuth cookie limits and causes 502 Bad Gateway.
+  // The login JSON response still includes permissions (for admin UI bootstrap).
+  // authorize() reloads permissions from DB for non-super-admin users.
 }
 
 export type AuthenticatedRequest = Request;
