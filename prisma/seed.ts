@@ -720,6 +720,162 @@ async function main(): Promise<void> {
   console.log(`Services: ${serviceData.length}`);
   console.log(`Discounts: ${services.length * 3} configured`);
   console.log('Document templates: 5 types');
+
+  // ─── Diagnostic Center Services (Clinical Tests) ─────────────────
+
+  console.log('Seeding diagnostic center services (clinical tests)...');
+
+  const diagnosticServices = [
+    // LAB
+    { titleEn: 'Complete Blood Count (CBC)', titleBn: 'কমপ্লিট ব্লাড কাউন্ট (সিবিসি)', category: 'LAB' as const, descriptionEn: 'Full blood panel including red cells, white cells, and platelets.', descriptionBn: 'লোহিত কণিকা, শ্বেত কণিকা ও প্লেটলেট সহ সম্পূর্ণ রক্ত পরীক্ষা।', icon: 'mdi:blood-bag', sortOrder: 1 },
+    { titleEn: 'Blood Chemistry Panel', titleBn: 'ব্লাড কেমিস্ট্রি প্যানেল', category: 'LAB' as const, descriptionEn: 'Liver function, kidney function, glucose, and electrolyte analysis.', descriptionBn: 'লিভার, কিডনি, গ্লুকোজ ও ইলেক্ট্রোলাইট পরীক্ষা।', icon: 'mdi:test-tube', sortOrder: 2 },
+    { titleEn: 'Urinalysis', titleBn: 'প্রস্রাব পরীক্ষা', category: 'LAB' as const, descriptionEn: 'Urine analysis for infection, crystals, and kidney health markers.', descriptionBn: 'সংক্রমণ, ক্রিস্টাল ও কিডনি স্বাস্থ্য সূচকের জন্য প্রস্রাব বিশ্লেষণ।', icon: 'mdi:flask', sortOrder: 3 },
+    { titleEn: 'Fecal Examination', titleBn: 'মলমূত্র পরীক্ষা', category: 'LAB' as const, descriptionEn: 'Stool test to detect parasites, worm eggs, and intestinal infections.', descriptionBn: 'পরজীবী, কৃমির ডিম ও অন্ত্রের সংক্রমণ সনাক্তের জন্য মল পরীক্ষা।', icon: 'mdi:microscope', sortOrder: 4 },
+    { titleEn: 'Thyroid Function Test (T4)', titleBn: 'থাইরয়েড ফাংশন টেস্ট (T4)', category: 'LAB' as const, descriptionEn: 'Thyroid hormone level check — important for cats and senior dogs.', descriptionBn: 'থাইরয়েড হরমোন স্তর পরীক্ষা — বিড়াল ও বয়স্ক কুকুরের জন্য গুরুত্বপূর্ণ।', icon: 'mdi:dna', sortOrder: 5 },
+    { titleEn: 'FIV / FeLV Rapid Test', titleBn: 'FIV/FeLV র‍্যাপিড টেস্ট', category: 'LAB' as const, descriptionEn: 'Rapid test for Feline Immunodeficiency Virus and Feline Leukemia Virus in cats.', descriptionBn: 'বিড়ালের ইমিউনোডিফিসিয়েন্সি ভাইরাস ও লিউকেমিয়া ভাইরাসের দ্রুত পরীক্ষা।', icon: 'mdi:virus', sortOrder: 6 },
+    { titleEn: 'Parvovirus Rapid Test', titleBn: 'পারভোভাইরাস র‍্যাপিড টেস্ট', category: 'LAB' as const, descriptionEn: 'Quick diagnosis of canine parvovirus from fecal sample.', descriptionBn: 'মলের নমুনা থেকে কুকুরের পারভোভাইরাসের দ্রুত নির্ণয়।', icon: 'mdi:virus-outline', sortOrder: 7 },
+    // IMAGING
+    { titleEn: 'Digital X-Ray', titleBn: 'ডিজিটাল এক্স-রে', category: 'IMAGING' as const, descriptionEn: 'Digital radiography for bones, chest, and abdominal organs.', descriptionBn: 'হাড়, বুক ও পেটের অঙ্গের জন্য ডিজিটাল রেডিওগ্রাফি।', icon: 'mdi:radiology-box-outline', sortOrder: 8 },
+    { titleEn: 'Ultrasound (Abdomen)', titleBn: 'আল্ট্রাসাউন্ড (পেট)', category: 'IMAGING' as const, descriptionEn: 'Abdominal ultrasound for liver, spleen, bladder, and reproductive organs.', descriptionBn: 'লিভার, প্লীহা, মূত্রথলি ও প্রজনন অঙ্গের আল্ট্রাসাউন্ড।', icon: 'mdi:ultrasound', sortOrder: 9 },
+    { titleEn: 'Echocardiography', titleBn: 'ইকোকার্ডিওগ্রাফি', category: 'IMAGING' as const, descriptionEn: 'Cardiac ultrasound to evaluate heart structure and function.', descriptionBn: 'হার্টের গঠন ও কার্যকারিতা মূল্যায়নের জন্য কার্ডিয়াক আল্ট্রাসাউন্ড।', icon: 'mdi:heart-pulse', sortOrder: 10 },
+    // SPECIALIST
+    { titleEn: 'Orthopedic Consultation', titleBn: 'অর্থোপেডিক পরামর্শ', category: 'SPECIALIST' as const, descriptionEn: 'Specialist evaluation for joint, bone, and musculoskeletal issues.', descriptionBn: 'জয়েন্ট, হাড় ও পেশীতন্ত্রের সমস্যার জন্য বিশেষজ্ঞ মূল্যায়ন।', icon: 'mdi:bone', sortOrder: 11 },
+    { titleEn: 'Dermatology Consultation', titleBn: 'ডার্মাটোলজি পরামর্শ', category: 'SPECIALIST' as const, descriptionEn: 'Skin disease diagnosis including allergies, infections, and coat conditions.', descriptionBn: 'অ্যালার্জি, সংক্রমণ ও লোমের সমস্যা সহ চর্মরোগ নির্ণয়।', icon: 'mdi:emoticon-poop', sortOrder: 12 },
+    { titleEn: 'Ophthalmology Examination', titleBn: 'চক্ষু পরীক্ষা', category: 'SPECIALIST' as const, descriptionEn: 'Eye examination for cataracts, glaucoma, corneal ulcers, and retinal issues.', descriptionBn: 'ছানি, গ্লুকোমা, কর্নিয়াল আলসার ও রেটিনা সমস্যার জন্য চক্ষু পরীক্ষা।', icon: 'mdi:eye-outline', sortOrder: 13 },
+    { titleEn: 'Dental Examination & Scaling', titleBn: 'দাঁত পরীক্ষা ও স্কেলিং', category: 'SPECIALIST' as const, descriptionEn: 'Oral health check and professional teeth cleaning under sedation.', descriptionBn: 'মৌখিক স্বাস্থ্য পরীক্ষা এবং সেডেশনের অধীনে পেশাদার দাঁত পরিষ্কার।', icon: 'mdi:tooth-outline', sortOrder: 14 },
+    // EMERGENCY
+    { titleEn: 'Emergency Triage & Stabilisation', titleBn: 'জরুরি ট্রিয়াজ ও স্থিতিশীলকরণ', category: 'EMERGENCY' as const, descriptionEn: 'Immediate assessment and stabilisation for critical or injured animals.', descriptionBn: 'সংকটজনক বা আহত প্রাণীর জন্য তাৎক্ষণিক মূল্যায়ন ও স্থিতিশীলকরণ।', icon: 'mdi:ambulance', sortOrder: 15 },
+    { titleEn: 'IV Fluid Therapy', titleBn: 'আইভি ফ্লুইড থেরাপি', category: 'EMERGENCY' as const, descriptionEn: 'Intravenous fluid support for dehydration, shock, or post-surgical recovery.', descriptionBn: 'পানিশূন্যতা, শক বা অস্ত্রোপচারের পরে পুনরুদ্ধারের জন্য শিরায় তরল সহায়তা।', icon: 'mdi:iv-bag', sortOrder: 16 },
+    { titleEn: '24/7 Emergency Care', titleBn: '২৪/৭ জরুরি সেবা', category: 'EMERGENCY' as const, descriptionEn: 'Round-the-clock emergency veterinary care for life-threatening conditions.', descriptionBn: 'জীবন-হুমকির পরিস্থিতির জন্য সার্বক্ষণিক জরুরি ভেটেরিনারি সেবা।', icon: 'mdi:hospital-box', sortOrder: 17 },
+    // FUTURE_TECH
+    { titleEn: 'DNA / Breed Profiling', titleBn: 'ডিএনএ / ব্রিড প্রোফাইলিং', category: 'FUTURE_TECH' as const, descriptionEn: 'Genetic breed identification and inherited disease screening (coming soon).', descriptionBn: 'জেনেটিক ব্রিড সনাক্তকরণ ও বংশগত রোগ স্ক্রিনিং (শীঘ্রই আসছে)।', icon: 'mdi:dna', sortOrder: 18 },
+    { titleEn: 'Microbiome Analysis', titleBn: 'মাইক্রোবায়োম বিশ্লেষণ', category: 'FUTURE_TECH' as const, descriptionEn: 'Gut microbiome profiling for nutrition and digestive health optimisation (coming soon).', descriptionBn: 'পুষ্টি ও পাচন স্বাস্থ্য অপ্টিমাইজেশনের জন্য গাট মাইক্রোবায়োম প্রোফাইলিং (শীঘ্রই)।', icon: 'mdi:bacteria-outline', sortOrder: 19 },
+  ];
+
+  for (const ds of diagnosticServices) {
+    const existing = await prisma.diagnosticCenterService.findFirst({
+      where: { titleEn: ds.titleEn },
+    });
+    if (!existing) {
+      await prisma.diagnosticCenterService.create({ data: ds });
+    }
+  }
+
+  console.log(`Diagnostic center services seeded: ${diagnosticServices.length}`);
+
+  // ─── Care Partner Benefits ────────────────────────────────────────
+
+  console.log('Seeding care partner benefits...');
+
+  const carePartnerBenefits = [
+    // SERVICE
+    { titleEn: 'Priority Service at BPA Community Clinics', titleBn: 'বিপিএ কমিউনিটি ক্লিনিকে অগ্রাধিকার সেবা', category: 'SERVICE' as const, icon: 'mdi:hospital-building', descriptionEn: 'Fast-track access to veterinary services at all BPA-partnered community clinics.', descriptionBn: 'সব বিপিএ-অংশীদার কমিউনিটি ক্লিনিকে ভেটেরিনারি সেবায় দ্রুত প্রবেশাধিকার।', sortOrder: 1 },
+    { titleEn: 'Free General Health Checkup (Annual)', titleBn: 'বিনামূল্যে বার্ষিক স্বাস্থ্য পরীক্ষা', category: 'SERVICE' as const, icon: 'mdi:stethoscope', descriptionEn: 'One free general health checkup per registered pet per year.', descriptionBn: 'প্রতি বছর প্রতিটি নিবন্ধিত পোষা প্রাণীর জন্য একটি বিনামূল্যে সাধারণ স্বাস্থ্য পরীক্ষা।', sortOrder: 2 },
+    // DISCOUNT
+    { titleEn: 'Discount on Veterinary Consultations', titleBn: 'ভেটেরিনারি পরামর্শে ছাড়', category: 'DISCOUNT' as const, icon: 'mdi:percent', descriptionEn: 'Flat percentage discount on consultation fees at partner clinics.', descriptionBn: 'অংশীদার ক্লিনিকে পরামর্শ ফিতে নির্দিষ্ট শতাংশ ছাড়।', sortOrder: 3 },
+    { titleEn: 'Discount on Vaccines & Medicines', titleBn: 'টিকা ও ওষুধে ছাড়', category: 'DISCOUNT' as const, icon: 'mdi:needle', descriptionEn: 'Preferential pricing on all routine vaccinations and prescribed medicines.', descriptionBn: 'সব নিয়মিত টিকা ও প্রেসক্রাইবড ওষুধে অগ্রাধিকারমূলক মূল্য নির্ধারণ।', sortOrder: 4 },
+    { titleEn: 'Discount on Diagnostic Tests', titleBn: 'ডায়াগনস্টিক পরীক্ষায় ছাড়', category: 'DIAGNOSTIC' as const, icon: 'mdi:test-tube', descriptionEn: 'Discounted rates on blood tests, imaging, and other laboratory services.', descriptionBn: 'রক্ত পরীক্ষা, ইমেজিং ও অন্যান্য ল্যাবরেটরি সেবায় ছাড়কৃত মূল্য।', sortOrder: 5 },
+    // DIGITAL
+    { titleEn: 'Digital BPA Care Partner Card', titleBn: 'ডিজিটাল বিপিএ কেয়ার পার্টনার কার্ড', category: 'DIGITAL' as const, icon: 'mdi:card-account-details', descriptionEn: 'A digital card with QR code that proves your Care Partner status at any clinic.', descriptionBn: 'QR কোড সহ একটি ডিজিটাল কার্ড যা যেকোনো ক্লিনিকে কেয়ার পার্টনার স্ট্যাটাস প্রমাণ করে।', sortOrder: 6 },
+    { titleEn: 'BPA Member Portal Access', titleBn: 'বিপিএ সদস্য পোর্টাল অ্যাক্সেস', category: 'DIGITAL' as const, icon: 'mdi:account-circle-outline', descriptionEn: 'Access to your personal dashboard with pet records, vaccination history, and reports.', descriptionBn: 'পোষা প্রাণীর রেকর্ড, টিকার ইতিহাস ও রিপোর্ট সহ ব্যক্তিগত ড্যাশবোর্ডে প্রবেশাধিকার।', sortOrder: 7 },
+    // WELFARE
+    { titleEn: 'Founding Clinic Zone Vote', titleBn: 'প্রতিষ্ঠাতা ক্লিনিক জোন ভোট', category: 'WELFARE' as const, icon: 'mdi:vote', descriptionEn: 'Vote on which Dhaka zone gets the first BPA Community Clinic. Your contribution decides the location.', descriptionBn: 'কোন ঢাকা জোনে প্রথম বিপিএ কমিউনিটি ক্লিনিক হবে তা ভোট দিন।', sortOrder: 8 },
+    { titleEn: 'Annual Transparency Report', titleBn: 'বার্ষিক স্বচ্ছতা রিপোর্ট', category: 'WELFARE' as const, icon: 'mdi:file-chart-outline', descriptionEn: 'Annual report showing how contributions have been utilised for community pet care.', descriptionBn: 'কমিউনিটি পোষা প্রাণী সেবায় অবদান কীভাবে ব্যবহার করা হয়েছে তা দেখানো বার্ষিক রিপোর্ট।', sortOrder: 9 },
+    // MEMBERSHIP
+    { titleEn: 'Recognition as Founding Care Partner', titleBn: 'প্রতিষ্ঠাতা কেয়ার পার্টনার হিসেবে স্বীকৃতি', category: 'MEMBERSHIP' as const, icon: 'mdi:star-circle-outline', descriptionEn: 'Your name listed as a founding contributor in BPA Community Clinic dedication records.', descriptionBn: 'বিপিএ কমিউনিটি ক্লিনিক উৎসর্গ রেকর্ডে প্রতিষ্ঠাতা অবদানকারী হিসেবে আপনার নাম।', sortOrder: 10 },
+    // FUTURE
+    { titleEn: 'Future Platform Benefits', titleBn: 'ভবিষ্যত প্ল্যাটফর্ম সুবিধা', category: 'FUTURE' as const, icon: 'mdi:rocket-launch-outline', descriptionEn: 'All future BPA platform benefits, programs, and features automatically included (details TBA).', descriptionBn: 'সমস্ত ভবিষ্যত বিপিএ প্ল্যাটফর্ম সুবিধা, প্রোগ্রাম এবং ফিচার স্বয়ংক্রিয়ভাবে অন্তর্ভুক্ত।', sortOrder: 11 },
+  ];
+
+  for (const b of carePartnerBenefits) {
+    const existing = await prisma.carePartnerBenefit.findFirst({ where: { titleEn: b.titleEn } });
+    if (!existing) {
+      await prisma.carePartnerBenefit.create({ data: { ...b, isActive: true } });
+    }
+  }
+
+  console.log(`Care partner benefits seeded: ${carePartnerBenefits.length}`);
+
+  // ─── Social Impact Programs ───────────────────────────────────────
+
+  console.log('Seeding social impact programs...');
+
+  const socialImpactPrograms = [
+    { titleEn: 'Stray Animal Medical Treatment', titleBn: 'পথ-প্রাণীর চিকিৎসা কর্মসূচি', impactType: 'STRAY_TREATMENT' as const, icon: 'mdi:paw', descriptionEn: 'Free medical treatment for injured and sick stray dogs and cats in Dhaka city.', descriptionBn: 'ঢাকা শহরের আহত ও অসুস্থ পথ-কুকুর ও বিড়ালের বিনামূল্যে চিকিৎসা।', sortOrder: 1 },
+    { titleEn: 'Community Feeding Programme', titleBn: 'কমিউনিটি খাদ্য সহায়তা কর্মসূচি', impactType: 'FEEDING' as const, icon: 'mdi:bowl-mix-outline', descriptionEn: 'Regular feeding stations for stray animals across Dhaka, managed by BPA volunteers.', descriptionBn: 'বিপিএ স্বেচ্ছাসেবকদের দ্বারা পরিচালিত ঢাকা জুড়ে পথ-প্রাণীর জন্য নিয়মিত খাদ্য কেন্দ্র।', sortOrder: 2 },
+    { titleEn: 'Mass Vaccination Drive', titleBn: 'গণ টিকাদান অভিযান', impactType: 'VACCINATION' as const, icon: 'mdi:needle', descriptionEn: 'Large-scale subsidised vaccination campaigns for pets in low-income communities.', descriptionBn: 'নিম্ন-আয়ের সম্প্রদায়ে পোষা প্রাণীদের জন্য বড় আকারের ভর্তুকিযুক্ত টিকাদান প্রচারণা।', sortOrder: 3 },
+    { titleEn: 'Animal Rescue & Rehabilitation', titleBn: 'প্রাণী উদ্ধার ও পুনর্বাসন', impactType: 'RESCUE' as const, icon: 'mdi:dog-service', descriptionEn: 'Emergency rescue and short-term rehabilitation for abused or abandoned pets.', descriptionBn: 'নির্যাতিত বা পরিত্যক্ত পোষা প্রাণীর জন্য জরুরি উদ্ধার ও স্বল্পমেয়াদী পুনর্বাসন।', sortOrder: 4 },
+    { titleEn: 'Temporary Shelter Support', titleBn: 'অস্থায়ী আশ্রয় সহায়তা', impactType: 'SHELTER' as const, icon: 'mdi:home-heart', descriptionEn: 'Support for partner shelters providing temporary housing for rescued animals.', descriptionBn: 'উদ্ধারকৃত প্রাণীদের অস্থায়ী আবাসন প্রদানকারী অংশীদার আশ্রয়ের সহায়তা।', sortOrder: 5 },
+    { titleEn: 'Low-Income Family Pet Care Support', titleBn: 'নিম্ন-আয়ী পরিবারের পোষা প্রাণী সেবা সহায়তা', impactType: 'LOW_INCOME_SUPPORT' as const, icon: 'mdi:hand-heart-outline', descriptionEn: 'Subsidised or free veterinary care for pets owned by low-income families.', descriptionBn: 'নিম্ন-আয়ের পরিবারের পোষা প্রাণীর জন্য ভর্তুকিযুক্ত বা বিনামূল্যে ভেটেরিনারি সেবা।', sortOrder: 6 },
+    { titleEn: 'Pet Welfare Education', titleBn: 'পোষা প্রাণী কল্যাণ শিক্ষা', impactType: 'EDUCATION' as const, icon: 'mdi:school-outline', descriptionEn: 'Community workshops, school programmes, and online resources on responsible pet ownership.', descriptionBn: 'দায়িত্বশীল পোষা প্রাণী পালন সম্পর্কে কমিউনিটি কর্মশালা, স্কুল প্রোগ্রাম ও অনলাইন সম্পদ।', sortOrder: 7 },
+  ];
+
+  for (const sp of socialImpactPrograms) {
+    const existing = await prisma.socialImpactProgram.findFirst({ where: { titleEn: sp.titleEn } });
+    if (!existing) {
+      await prisma.socialImpactProgram.create({ data: { ...sp, isActive: true } });
+    }
+  }
+
+  console.log(`Social impact programs seeded: ${socialImpactPrograms.length}`);
+
+  // ─── Roadmap Items ────────────────────────────────────────────────
+
+  console.log('Seeding roadmap items...');
+
+  const roadmapItems = [
+    { phase: 'Phase 1', year: 2026, titleEn: 'Launch BPA Community Care Partner Card', titleBn: 'বিপিএ কমিউনিটি কেয়ার পার্টনার কার্ড চালু', status: 'IN_PROGRESS' as const, descriptionEn: 'Online registration and digital card issuance for founding Care Partners across Dhaka.', descriptionBn: 'ঢাকা জুড়ে প্রতিষ্ঠাতা কেয়ার পার্টনারদের জন্য অনলাইন নিবন্ধন ও ডিজিটাল কার্ড ইস্যু।', sortOrder: 1 },
+    { phase: 'Phase 1', year: 2026, titleEn: 'Pet Census 2026 — Dhaka Household Survey', titleBn: 'পেট সেনসাস ২০২৬ — ঢাকা পরিবার জরিপ', status: 'IN_PROGRESS' as const, descriptionEn: 'First-ever structured census of pets in Dhaka to guide clinic placement and resource allocation.', descriptionBn: 'ক্লিনিক স্থাপন ও সম্পদ বরাদ্দ নির্দেশিকা তৈরির জন্য ঢাকায় পোষা প্রাণীর প্রথম কাঠামোগত আদমশুমারি।', sortOrder: 2 },
+    { phase: 'Phase 2', year: 2026, titleEn: 'Establish First BPA Community Clinic (Pilot Zone)', titleBn: 'প্রথম বিপিএ কমিউনিটি ক্লিনিক স্থাপন (পাইলট জোন)', status: 'PLANNED' as const, descriptionEn: 'Open the first BPA Community 24/7 Pet Clinic in the zone with highest member demand.', descriptionBn: 'সর্বোচ্চ সদস্য চাহিদার জোনে প্রথম বিপিএ কমিউনিটি ২৪/৭ পেট ক্লিনিক খোলা।', sortOrder: 3 },
+    { phase: 'Phase 2', year: 2026, titleEn: 'Partner Clinic Network — Discount Integration', titleBn: 'পার্টনার ক্লিনিক নেটওয়ার্ক — ডিসকাউন্ট ইন্টিগ্রেশন', status: 'PLANNED' as const, descriptionEn: 'On-board existing vetinary clinics as partner clinics offering Care Partner card discounts.', descriptionBn: 'বিদ্যমান ভেটেরিনারি ক্লিনিকগুলিকে কেয়ার পার্টনার কার্ড ছাড় প্রদানকারী পার্টনার ক্লিনিক হিসেবে যুক্ত করা।', sortOrder: 4 },
+    { phase: 'Phase 3', year: 2027, titleEn: 'Expand to 3 Additional Clinic Zones', titleBn: 'আরও ৩টি ক্লিনিক জোনে সম্প্রসারণ', status: 'PLANNED' as const, descriptionEn: 'Scale the community clinic model to three more Dhaka zones based on census data and member demand.', descriptionBn: 'আদমশুমারি তথ্য ও সদস্য চাহিদার উপর ভিত্তি করে ঢাকার আরও তিনটি জোনে কমিউনিটি ক্লিনিক মডেল সম্প্রসারণ।', sortOrder: 5 },
+    { phase: 'Phase 3', year: 2027, titleEn: 'Pet Smart Solution Platform Integration', titleBn: 'পেট স্মার্ট সলিউশন প্ল্যাটফর্ম ইন্টিগ্রেশন', status: 'PLANNED' as const, descriptionEn: 'Full integration with Pet Smart Solution for advanced pet health tracking and smart clinic management.', descriptionBn: 'উন্নত পোষা প্রাণী স্বাস্থ্য ট্র্যাকিং ও স্মার্ট ক্লিনিক ব্যবস্থাপনার জন্য পেট স্মার্ট সলিউশনের সাথে সম্পূর্ণ ইন্টিগ্রেশন।', sortOrder: 6 },
+    { phase: 'Phase 4', year: 2028, titleEn: 'All 8 Dhaka Zones — Full Clinic Coverage', titleBn: 'সব ৮টি ঢাকা জোন — সম্পূর্ণ ক্লিনিক কভারেজ', status: 'PLANNED' as const, descriptionEn: 'Complete the BPA Community Clinic network across all 8 defined zones of Dhaka city.', descriptionBn: 'ঢাকা শহরের সমস্ত ৮টি নির্ধারিত জোন জুড়ে বিপিএ কমিউনিটি ক্লিনিক নেটওয়ার্ক সম্পূর্ণ করা।', sortOrder: 7 },
+  ];
+
+  for (const ri of roadmapItems) {
+    const existing = await prisma.roadmapItem.findFirst({ where: { titleEn: ri.titleEn } });
+    if (!existing) {
+      await prisma.roadmapItem.create({ data: { ...ri, isActive: true } });
+    }
+  }
+
+  console.log(`Roadmap items seeded: ${roadmapItems.length}`);
+
+  // ─── Site Settings (Singleton) ────────────────────────────────────
+
+  console.log('Seeding site settings...');
+
+  await prisma.siteSettings.upsert({
+    where: { id: 'default' },
+    update: {},
+    create: {
+      id: 'default',
+      siteName: 'Bangladesh Pet Association',
+      siteTagline: 'Building a Better Future for Pets and Their Families',
+      organizationName: 'Bangladesh Pet Association',
+      officialPhone: '+8801XXXXXXXXX',
+      supportPhone: '+8801XXXXXXXXX',
+      generalEmail: 'info@bpa.org.bd',
+      supportEmail: 'support@bpa.org.bd',
+      officeHours: 'Saturday – Thursday: 9 AM – 6 PM (BST)',
+      officeAddress: 'Dhaka, Bangladesh',
+      city: 'Dhaka',
+      country: 'Bangladesh',
+      defaultMetaTitle: 'Bangladesh Pet Association — Community Pet Care',
+      defaultMetaDescription: 'BPA is dedicated to improving the lives of pets and their owners across Bangladesh through community clinics, vaccination campaigns, and education.',
+      registrationErrorTitle: 'Online registration temporarily unavailable',
+      registrationErrorMessage: 'Online registration/payment is temporarily unavailable. Please call BPA support for assistance.',
+    },
+  });
+
+  console.log('Site settings seeded.');
+  console.log('─────────────────────────────────────────────');
+  console.log('All seed sections complete.');
+  console.log(`Diagnostic services: ${diagnosticServices.length}`);
+  console.log(`Care partner benefits: ${carePartnerBenefits.length}`);
+  console.log(`Social impact programs: ${socialImpactPrograms.length}`);
+  console.log(`Roadmap items: ${roadmapItems.length}`);
 }
 
 main()
