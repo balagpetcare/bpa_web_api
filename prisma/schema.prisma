@@ -53,6 +53,8 @@ enum PaymentStatus {
   pending
   success
   failed
+  cancelled
+  pending_review
   refunded
 }
 

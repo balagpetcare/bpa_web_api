@@ -22,6 +22,8 @@ import analyticsRouter from './modules/analytics/analytics.router';
 import membershipRouter from './modules/membership/membership.router';
 import paymentsRouter from './modules/payments/payments.router';
 import paymentCallbacksRouter from './modules/payments/payment-callbacks.router';
+import publicPaymentsRouter from './modules/payments/public-payments.router';
+import publicBookingsRouter from './modules/payments/public-bookings.router';
 import smsLogsRouter from './modules/sms-logs/sms-logs.router';
 import emailLogsRouter from './modules/email-logs/email-logs.router';
 import locationsRouter from './modules/locations/locations.router';
@@ -119,6 +121,8 @@ app.use(`${v1}/volunteers`, volunteersRouter);
 app.use(`${v1}/membership`, membershipRouter);
 app.use(`${v1}/payment`, paymentCallbacksRouter);
 app.use(`${v1}/admin/payments`, paymentsRouter);
+app.use(`${v1}/public/payments`, publicPaymentsRouter);
+app.use(`${v1}/public/bookings`, publicBookingsRouter);
 app.use(`${v1}/admin/sms-logs`, smsLogsRouter);
 app.use(`${v1}/admin/email-logs`, emailLogsRouter);
 
