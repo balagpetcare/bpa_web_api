@@ -4,9 +4,8 @@ import { validate } from '../../middlewares/validate';
 import { publicFormLimiter } from '../../middlewares/rateLimiter';
 import { sendCreated } from '../../utils/response';
 import { AppError } from '../../utils/AppError';
-import { getEPS, generateMerchantTxnId, getMembershipFee, isEPSConfigured } from '../../services/eps.service';
+import { initializeEpsPayment, generateMerchantTxnId, getMembershipFee, isEPSConfigured } from '../../services/eps.service';
 import { createPayment, updatePaymentEpsTxnId } from '../payments/payments.repository';
-import { config } from '../../config';
 
 const router = Router();
 
@@ -56,16 +55,10 @@ router.post(
       });
 
       // Initiate EPS payment
-      const eps = getEPS();
-      const backendBase = config.BACKEND_URL;
-
-      const epsResult = await eps.initializePayment({
+      const epsResult = await initializeEpsPayment({
         customerOrderId: payment.id,
         merchantTransactionId: merchantTxnId,
         totalAmount: amount,
-        successUrl: `${backendBase}/api/v1/payment/callback/success`,
-        failUrl:    `${backendBase}/api/v1/payment/callback/fail`,
-        cancelUrl:  `${backendBase}/api/v1/payment/callback/cancel`,
         customerName:     dto.name,
         customerEmail:    dto.email,
         customerPhone:    customerPhone,

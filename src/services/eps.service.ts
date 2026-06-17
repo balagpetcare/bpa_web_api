@@ -84,6 +84,70 @@ export function generateMerchantTxnId(): string {
   ].join('');
 }
 
+// ─── Centralized payment initialization ──────────────────────────
+
+export interface EpsPaymentParams {
+  customerOrderId: string;
+  merchantTransactionId: string;
+  totalAmount: number;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  customerAddress: string;
+  customerCity: string;
+  customerState: string;
+  customerPostcode: string;
+  productName: string;
+  valueA?: string;
+  valueB?: string;
+  valueC?: string;
+}
+
+function containsLocalhost(url: string): boolean {
+  return url.includes('localhost') || url.includes('127.0.0.1');
+}
+
+/**
+ * Builds EPS callback URLs from BACKEND_URL, validates them, logs them
+ * (without credentials), then calls eps.initializePayment().
+ *
+ * All five EPS payment call sites use this instead of constructing URLs
+ * inline. This is the single source of truth for URL building and the
+ * production localhost guard.
+ */
+export async function initializeEpsPayment(params: EpsPaymentParams) {
+  const apiBase    = config.BACKEND_URL.replace(/\/$/, '');
+  const successUrl = `${apiBase}/api/v1/payment/callback/success`;
+  const failUrl    = `${apiBase}/api/v1/payment/callback/fail`;
+  const cancelUrl  = `${apiBase}/api/v1/payment/callback/cancel`;
+
+  // Production guard: localhost callback URLs will never be reachable by EPS.
+  // Throw here — before the SDK call — so the error surfaces in logs immediately.
+  if (config.NODE_ENV === 'production') {
+    if (containsLocalhost(apiBase) || containsLocalhost(config.FRONTEND_URL)) {
+      throw new Error(
+        `[EPS] Config error: localhost URL detected in production. ` +
+        `BACKEND_URL="${apiBase}" FRONTEND_URL="${config.FRONTEND_URL}". ` +
+        `Set both to production hostnames ` +
+        `(e.g. BACKEND_URL=https://api.bangladeshpetassociation.com, ` +
+        `FRONTEND_URL=https://bangladeshpetassociation.com).`,
+      );
+    }
+  }
+
+  // Log redirect/callback URLs and base config. Never log credentials.
+  console.log(
+    `[EPS] initializePayment | ` +
+    `apiBase=${apiBase} | ` +
+    `frontendBase=${config.FRONTEND_URL} | ` +
+    `successUrl=${successUrl} | ` +
+    `failUrl=${failUrl} | ` +
+    `cancelUrl=${cancelUrl}`,
+  );
+
+  return getEPS().initializePayment({ ...params, successUrl, failUrl, cancelUrl });
+}
+
 // ─── Membership fee lookup ────────────────────────────────────────
 
 const MEMBERSHIP_FEES: Record<string, number> = {

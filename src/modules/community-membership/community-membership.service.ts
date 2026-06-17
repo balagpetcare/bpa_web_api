@@ -2,7 +2,7 @@ import { randomUUID, createHmac } from 'crypto';
 import { prisma } from '../../database/prisma';
 import { config } from '../../config';
 import { AppError } from '../../utils/AppError';
-import { getEPS, generateMerchantTxnId, isEPSConfigured } from '../../services/eps.service';
+import { initializeEpsPayment, generateMerchantTxnId, isEPSConfigured } from '../../services/eps.service';
 import { createPayment, updatePaymentEpsTxnId, updatePaymentStatus } from '../payments/payments.repository';
 import * as repo from './community-membership.repository';
 import { getZoneById } from '../community-zones/community-zones.repository';
@@ -255,19 +255,14 @@ export async function initiatePurchase(dto: InitiatePurchaseDto, ipAddress?: str
   }
 
   // Initiate EPS payment
-  const eps = getEPS();
-  const backendBase = config.BACKEND_URL;
   const phone = dto.memberMobile.replace(/\D/g, '');
   const normalizedPhone = phone.startsWith('880') ? phone.slice(3) : phone;
   const customerPhone = normalizedPhone.startsWith('0') ? normalizedPhone : `0${normalizedPhone}`;
 
-  const epsResult = await eps.initializePayment({
+  const epsResult = await initializeEpsPayment({
     customerOrderId: purchase.id,
     merchantTransactionId: merchantTxnId,
     totalAmount: amount,
-    successUrl: `${backendBase}/api/v1/payment/callback/success`,
-    failUrl: `${backendBase}/api/v1/payment/callback/fail`,
-    cancelUrl: `${backendBase}/api/v1/payment/callback/cancel`,
     customerName: dto.memberName,
     customerEmail: dto.memberEmail || 'no-email@bpa.org',
     customerPhone,
@@ -710,15 +705,10 @@ export async function requestUpgrade(dto: UpgradeRequestDto, ipAddress?: string)
   });
 
   // Initiate EPS
-  const eps = getEPS();
-  const backendBase = config.BACKEND_URL;
-  const epsResult = await eps.initializePayment({
+  const epsResult = await initializeEpsPayment({
     customerOrderId: upgrade.id,
     merchantTransactionId: merchantTxnId,
     totalAmount: amount,
-    successUrl: `${backendBase}/api/v1/payment/callback/success`,
-    failUrl: `${backendBase}/api/v1/payment/callback/fail`,
-    cancelUrl: `${backendBase}/api/v1/payment/callback/cancel`,
     customerName: purchase.memberName,
     customerEmail: purchase.memberEmail || 'no-email@bpa.org',
     customerPhone,

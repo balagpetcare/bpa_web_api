@@ -1,7 +1,6 @@
 import { prisma } from '../../database/prisma';
 import { AppError } from '../../utils/AppError';
-import { getEPS, isEPSConfigured, generateMerchantTxnId } from '../../services/eps.service';
-import { config } from '../../config';
+import { initializeEpsPayment, isEPSConfigured, generateMerchantTxnId } from '../../services/eps.service';
 import * as repo from './care-contributions.repository';
 import type { InitiateContributionDto, UpdateContributionDto, ContributionListQuery } from './care-contributions.types';
 
@@ -58,14 +57,10 @@ export async function initiateContribution(dto: InitiateContributionDto) {
     return [c, p];
   });
 
-  const eps = getEPS();
-  const epsResult = await eps.initializePayment({
+  const epsResult = await initializeEpsPayment({
     customerOrderId: payment.id,
     merchantTransactionId: merchantTxnId,
     totalAmount: amountBdt,
-    successUrl: `${config.BACKEND_URL}/api/v1/payment/callback/success`,
-    failUrl:    `${config.BACKEND_URL}/api/v1/payment/callback/fail`,
-    cancelUrl:  `${config.BACKEND_URL}/api/v1/payment/callback/cancel`,
     customerName:     dto.contributorName,
     customerPhone:    dto.contributorMobile,
     customerEmail:    dto.contributorEmail ?? '',

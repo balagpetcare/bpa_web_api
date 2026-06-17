@@ -5,9 +5,8 @@ import { uniqueEventSlug } from '../../utils/slug';
 import { AuditContext, auditCreate, auditUpdate, auditDelete, auditPublish, auditUnpublish } from '../../utils/audit';
 import { PaginationMeta } from '../../types';
 import * as repo from './events.repository';
-import { getEPS, generateMerchantTxnId, isEPSConfigured } from '../../services/eps.service';
+import { initializeEpsPayment, generateMerchantTxnId, isEPSConfigured } from '../../services/eps.service';
 import { createPayment, updatePaymentEpsTxnId } from '../payments/payments.repository';
-import { config } from '../../config';
 import {
   CreateEventDto, UpdateEventDto, PublishEventDto, EventListQuery,
   CreateRegistrationDto, RegistrationListQuery, UpdateRegistrationStatusDto,
@@ -219,15 +218,10 @@ export async function createRegistration(
     await repo.updateRegistrationPayment(reg.id, payment.id);
 
     // Initiate EPS
-    const eps = getEPS();
-    const backendBase = config.BACKEND_URL;
-    const epsResult = await eps.initializePayment({
+    const epsResult = await initializeEpsPayment({
       customerOrderId: reg.id,
       merchantTransactionId: merchantTxnId,
       totalAmount: amount,
-      successUrl: `${backendBase}/api/v1/payment/callback/success`,
-      failUrl:    `${backendBase}/api/v1/payment/callback/fail`,
-      cancelUrl:  `${backendBase}/api/v1/payment/callback/cancel`,
       customerName:     dto.name,
       customerEmail:    dto.email,
       customerPhone:    customerPhone,

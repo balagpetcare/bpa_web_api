@@ -1,7 +1,7 @@
 import { WaitlistStatus } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { AppError } from '../../utils/AppError';
-import { getEPS, isEPSConfigured, generateMerchantTxnId } from '../../services/eps.service';
+import { initializeEpsPayment, isEPSConfigured, generateMerchantTxnId } from '../../services/eps.service';
 import { generateQrToken } from '../../utils/qr';
 import { sendCampaignSms } from '../../services/campaign-sms.service';
 import { sendRegistrationConfirmationEmail } from '../../services/campaign-email.service';
@@ -166,19 +166,14 @@ export async function registerForCampaign(dto: RegisterCampaignDto) {
     }
 
     try {
-      const eps = getEPS();
-      const { BACKEND_URL } = await import('../../config').then(m => m.config);
       // Use booking reference as a safe fallback email when owner didn't provide one.
       // EPS rejects an empty customerEmail — a deterministic placeholder is always valid.
       const customerEmail = owner.email?.trim() || `${registration.bookingNumber.toLowerCase()}@bangladeshpetassociation.com`;
-      console.log(`[EPS] Initializing payment for booking ${registration.bookingNumber}, amount=${totalAmount} BDT, email_source=${owner.email?.trim() ? 'user' : 'generated'}`);
-      const epsResult = await eps.initializePayment({
+      console.log(`[EPS] campaign booking=${registration.bookingNumber} amount=${totalAmount} BDT email_source=${owner.email?.trim() ? 'user' : 'generated'}`);
+      const epsResult = await initializeEpsPayment({
         customerOrderId: payment.id,
         merchantTransactionId: merchantTxnId,
         totalAmount,
-        successUrl: `${BACKEND_URL}/api/v1/payment/callback/success`,
-        failUrl:    `${BACKEND_URL}/api/v1/payment/callback/fail`,
-        cancelUrl:  `${BACKEND_URL}/api/v1/payment/callback/cancel`,
         customerName:     owner.ownerName,
         customerPhone:    owner.mobile,
         customerEmail,
@@ -191,7 +186,6 @@ export async function registerForCampaign(dto: RegisterCampaignDto) {
         valueB: 'campaign',
       });
 
-      console.log(`[EPS] Payment initialized for booking ${registration.bookingNumber} — redirect URL received`);
       return { registration, paymentUrl: epsResult.RedirectURL, isFree: false };
     } catch (epsErr) {
       // EPS call failed at runtime (network/API error). Keep the booking as
