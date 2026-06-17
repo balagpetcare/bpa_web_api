@@ -19,7 +19,7 @@ import {
 import {
   getDashboardHandler,
   getProgramHandler, updateProgramHandler,
-  getPublicOverviewHandler,
+  getPublicOverviewHandler, getPublicSettingsHandler, listPublicBenefitsHandler,
   listTiersHandler, getTierHandler, getTierBySlugHandler, listPublicTiersHandler,
   createTierHandler, updateTierHandler, deleteTierHandler,
   listServicesHandler, createServiceHandler, updateServiceHandler, deleteServiceHandler,
@@ -101,6 +101,8 @@ adminRouter.delete('/documents/:id', validateUuid('id'), authorize(RESOURCES.COM
 const publicRouter = Router();
 
 publicRouter.get('/overview', publicReadLimiter, getPublicOverviewHandler);
+publicRouter.get('/settings', publicReadLimiter, getPublicSettingsHandler);
+publicRouter.get('/benefits', publicReadLimiter, listPublicBenefitsHandler);
 publicRouter.get('/zone-demand', publicReadLimiter, getZoneDemandHandler);
 publicRouter.get('/tiers', publicReadLimiter, listPublicTiersHandler);
 publicRouter.get('/tiers/:slug', publicReadLimiter, getTierBySlugHandler);

@@ -44,6 +44,39 @@ export async function getPublicOverviewHandler(_req: Request, res: Response, nex
   catch (err) { next(err); }
 }
 
+// ─── Public Settings (program metadata + computed offer state) ────
+
+export async function getPublicSettingsHandler(_req: Request, res: Response, next: NextFunction) {
+  try {
+    const program = await repo.getOrCreateDefaultProgram();
+    const now = new Date();
+    let isOfferActive = false;
+    let offerRemainingSeconds = 0;
+
+    if (program?.offerStartAt && program?.offerEndAt) {
+      if (now >= new Date(program.offerStartAt) && now <= new Date(program.offerEndAt)) {
+        isOfferActive = true;
+        offerRemainingSeconds = Math.max(0, Math.floor((new Date(program.offerEndAt).getTime() - now.getTime()) / 1000));
+      }
+    }
+
+    sendSuccess(res, {
+      ...program,
+      isOfferActive,
+      offerRemainingSeconds,
+      launchOfferEnabled: isOfferActive,
+      programActive: program?.isActive ?? true,
+    });
+  } catch (err) { next(err); }
+}
+
+// ─── Public Benefits ──────────────────────────────────────────────
+
+export async function listPublicBenefitsHandler(_req: Request, res: Response, next: NextFunction) {
+  try { sendSuccess(res, await repo.listBenefits(false)); }
+  catch (err) { next(err); }
+}
+
 // ─── Tiers ───────────────────────────────────────────────────────
 
 export async function listTiersHandler(req: Request, res: Response, next: NextFunction) {

@@ -49,6 +49,7 @@ import { socialImpactProgramsAdminRouter, socialImpactProgramsPublicRouter } fro
 import { roadmapItemsAdminRouter, roadmapItemsPublicRouter } from './modules/roadmap-items/roadmap-items.router';
 import { diagnosticCenterServicesAdminRouter, diagnosticCenterServicesPublicRouter } from './modules/diagnostic-center-services/diagnostic-center-services.router';
 import { siteSettingsAdminRouter, siteSettingsPublicRouter } from './modules/site-settings/site-settings.router';
+import { communityMembershipAdminRouter, communityMembershipPublicRouter } from './modules/community-membership/community-membership.router';
 
 const app = express();
 
@@ -171,9 +172,11 @@ app.use(`${v1}/public/site-settings`, siteSettingsPublicRouter);
 app.use(`${v1}/admin/site-settings`, siteSettingsAdminRouter);
 
 // ─── Community Care Membership Engine ──────────────────────────
-import { communityMembershipAdminRouter, communityMembershipPublicRouter } from './modules/community-membership/community-membership.router';
 app.use(`${v1}/admin/community-membership`, communityMembershipAdminRouter);
 app.use(`${v1}/public/community-membership`, communityMembershipPublicRouter);
+// Aliases: frontend may call /public/membership/* or /public/community-care/*
+app.use(`${v1}/public/membership`, communityMembershipPublicRouter);
+app.use(`${v1}/public/community-care`, communityMembershipPublicRouter);
 
 // ─── Error Handling ─────────────────────────────────────────────
 app.use(notFound);

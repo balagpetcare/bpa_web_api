@@ -38,6 +38,7 @@ adminRouter.delete('/:id', validateUuid('id'), authorize(RESOURCES.PET_CENSUS, A
 
 const publicRouter = Router();
 publicRouter.get('/settings', getPublicCampaignSettingsHandler);
+publicRouter.get('/campaign', getPublicCampaignSettingsHandler);
 publicRouter.post('/', authenticateOptional, publicFormLimiter, validate(submitCensusSchema), submitCensusHandler);
 publicRouter.post('/submit', authenticateOptional, publicFormLimiter, validate(submitCensusSchema), submitCensusHandler);
 publicRouter.get('/status', validate(publicStatusLookupSchema, 'query'), submissionStatusLookupHandler);
