@@ -12,11 +12,25 @@
 
 import { S3Client, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
+import dns from 'node:dns';
+import https from 'node:https';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
 import { AppError } from '../utils/AppError';
+
+// Force IPv4 for S3-compatible endpoints — prevents connection timeouts when
+// the DNS resolves to an IPv6 address the local network can't route (e.g. Backblaze B2).
+function makeIpv4HttpsAgent(): https.Agent {
+  const origLookup = dns.lookup.bind(dns);
+  return new https.Agent({
+    lookup(hostname, options, callback) {
+      origLookup(hostname, { ...options, family: 4 }, callback);
+    },
+  });
+}
 
 // ─── Object key strategy ─────────────────────────────────────────
 
@@ -57,11 +71,17 @@ class S3Driver {
     this.client = new S3Client({
       region: config.S3_REGION ?? 'us-east-1',
       ...(config.S3_ENDPOINT ? { endpoint: config.S3_ENDPOINT } : {}),
-      forcePathStyle: config.S3_FORCE_PATH_STYLE === 'true',
+      forcePathStyle: String(process.env.S3_FORCE_PATH_STYLE).toLowerCase() === 'true',
       credentials: {
         accessKeyId: config.S3_ACCESS_KEY_ID!,
         secretAccessKey: config.S3_SECRET_ACCESS_KEY!,
       },
+      requestHandler: new NodeHttpHandler({
+        httpsAgent: makeIpv4HttpsAgent(),
+        connectionTimeout: 30000,
+        socketTimeout: 30000,
+      }),
+      maxAttempts: 2,
     });
   }
 
