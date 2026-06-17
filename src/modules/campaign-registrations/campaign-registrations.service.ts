@@ -162,15 +162,16 @@ export async function registerForCampaign(dto: RegisterCampaignDto) {
         ? 'PAYMENT_CHANNEL_MODE is not EPS'
         : 'EPS credentials are incomplete';
       console.warn(`[BPA] Payment gateway inactive (${reason}) — booking ${registration.bookingNumber} created as pending_payment.`);
-      return { registration, paymentUrl: null, isFree: false, paymentGatewayUnavailable: true };
+      return { registration, paymentUrl: null, isFree: false, paymentGatewayUnavailable: true, paymentMode: 'MANUAL_FALLBACK' as const };
     }
 
     try {
       const eps = getEPS();
       const { BACKEND_URL } = await import('../../config').then(m => m.config);
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[EPS] Initializing payment for booking ${registration.bookingNumber}, amount=${totalAmount} BDT, merchantTxnId=${merchantTxnId}`);
-      }
+      // Use booking reference as a safe fallback email when owner didn't provide one.
+      // EPS rejects an empty customerEmail — a deterministic placeholder is always valid.
+      const customerEmail = owner.email?.trim() || `${registration.bookingNumber.toLowerCase()}@bangladeshpetassociation.com`;
+      console.log(`[EPS] Initializing payment for booking ${registration.bookingNumber}, amount=${totalAmount} BDT, email_source=${owner.email?.trim() ? 'user' : 'generated'}`);
       const epsResult = await eps.initializePayment({
         customerOrderId: payment.id,
         merchantTransactionId: merchantTxnId,
@@ -180,7 +181,7 @@ export async function registerForCampaign(dto: RegisterCampaignDto) {
         cancelUrl:  `${BACKEND_URL}/api/v1/payment/callback/cancel`,
         customerName:     owner.ownerName,
         customerPhone:    owner.mobile,
-        customerEmail:    owner.email ?? '',
+        customerEmail,
         customerAddress:  'Bangladesh',
         customerCity:     'Dhaka',
         customerState:    'Dhaka Division',
@@ -190,15 +191,13 @@ export async function registerForCampaign(dto: RegisterCampaignDto) {
         valueB: 'campaign',
       });
 
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[EPS] Payment initialized — RedirectURL: ${epsResult.RedirectURL}`);
-      }
+      console.log(`[EPS] Payment initialized for booking ${registration.bookingNumber} — redirect URL received`);
       return { registration, paymentUrl: epsResult.RedirectURL, isFree: false };
     } catch (epsErr) {
       // EPS call failed at runtime (network/API error). Keep the booking as
       // pending_payment — admin can confirm manually. Do NOT release slots.
       console.error('[BPA] EPS initializePayment failed:', epsErr instanceof Error ? epsErr.message : epsErr);
-      return { registration, paymentUrl: null, isFree: false, paymentGatewayUnavailable: true };
+      return { registration, paymentUrl: null, isFree: false, paymentGatewayUnavailable: true, paymentMode: 'PAYMENT_INIT_FAILED' as const };
     }
   } catch (err) {
     // Rollback slot reservation on any non-EPS failure

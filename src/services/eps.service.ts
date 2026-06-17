@@ -5,9 +5,13 @@ import { config } from '../config';
 
 let _instance: EPS | null = null;
 
-// EPS_ENV takes precedence; EPS_SANDBOX is the legacy fallback
+// EPS_ENV takes full precedence when explicitly set.
+// EPS_SANDBOX is the legacy fallback and defaults to 'true', so it must NOT be
+// consulted when EPS_ENV=production — otherwise the default would always win.
 function isSandbox(): boolean {
-  return config.EPS_ENV === 'demo' || config.EPS_SANDBOX === 'true';
+  if (config.EPS_ENV === 'production') return false;
+  if (config.EPS_ENV === 'demo') return true;
+  return config.EPS_SANDBOX === 'true';
 }
 
 export function getEPS(): EPS {
