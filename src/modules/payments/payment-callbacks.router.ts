@@ -10,6 +10,43 @@ const router = Router();
 // Format: YYYYMMDDHHmmssSSS — exactly 17 digits
 const MERCHANT_TXN_ID_RE = /^\d{17}$/;
 
+// All param names EPS may use for the merchant transaction ID.
+// EPS documentation is inconsistent across SDK versions — normalize all of them.
+const TXN_PARAM_NAMES = [
+  'merchantTransactionId', // primary — set in initializePayment
+  'merchantTxnId',
+  'txn',
+  'transactionId',
+  'transaction_id',
+  'epwTxnId',
+  'paymentRefId',
+  'payment_ref_id',
+] as const;
+
+// Param names that may carry a fallback order/reference ID (payment.id UUID or booking ref)
+const ORDER_PARAM_NAMES = [
+  'orderId',
+  'customerOrderId',
+  'reference',
+  'bookingRef',
+] as const;
+
+function extractMerchantTxnId(query: Request['query']): { txnId: string; paramName: string } | null {
+  for (const name of TXN_PARAM_NAMES) {
+    const val = query[name];
+    if (typeof val === 'string' && MERCHANT_TXN_ID_RE.test(val)) return { txnId: val, paramName: name };
+  }
+  return null;
+}
+
+function extractOrderRef(query: Request['query']): string | null {
+  for (const name of ORDER_PARAM_NAMES) {
+    const val = query[name];
+    if (typeof val === 'string' && val.trim()) return val.trim();
+  }
+  return null;
+}
+
 // ─── Allowed EPS callback IP list ────────────────────────────────
 // Populated from EPS_CALLBACK_IPS env var (comma-separated). Empty = no filtering (dev).
 const allowedCallbackIPs: Set<string> = new Set(
@@ -34,19 +71,31 @@ function requireCallbackIP(req: Request, res: Response, next: NextFunction): voi
 
 // ─── merchantTxnId validation middleware ─────────────────────────
 function validateMerchantTxnId(req: Request, res: Response, next: NextFunction): void {
-  const id = req.query.merchantTransactionId as string | undefined;
-  if (!id || !MERCHANT_TXN_ID_RE.test(id)) {
-    // Log the invalid attempt before rejecting
+  const found = extractMerchantTxnId(req.query);
+
+  if (!found) {
+    // Log received query key names only — never log values to avoid leaking payment data
+    const receivedKeys = Object.keys(req.query).join(', ') || '(none)';
+    console.warn(`[EPS callback] No valid merchant transaction ID found. Path: ${req.path} | Query keys: ${receivedKeys}`);
     void logCallbackAttempt({
       callbackType: deriveCallbackType(req.path),
-      merchantTxnId: id ?? null,
+      merchantTxnId: null,
       outcome: 'rejected_invalid_id',
       ipAddress: req.ip ?? null,
       userAgent: req.headers['user-agent'] ?? null,
     });
-    res.redirect(`${config.FRONTEND_URL}/payment/failed?reason=missing_txn`);
+    // Pass any fallback order reference to the frontend so support has a reference number
+    const orderRef = extractOrderRef(req.query);
+    const qs = orderRef ? `?reason=missing_txn&ref=${encodeURIComponent(orderRef)}` : '?reason=missing_txn';
+    res.redirect(`${config.FRONTEND_URL}/payment/failed${qs}`);
     return;
   }
+
+  if (found.paramName !== 'merchantTransactionId') {
+    console.log(`[EPS callback] Merchant TXN ID found in non-standard param "${found.paramName}" — normalizing`);
+  }
+  // Normalize so all downstream handlers read from the canonical param name
+  req.query.merchantTransactionId = found.txnId;
   next();
 }
 
