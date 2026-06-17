@@ -99,6 +99,25 @@ function validateMerchantTxnId(req: Request, res: Response, next: NextFunction):
   next();
 }
 
+// Look up the campaign booking number for a given merchant TXN ID so we can
+// include it in the frontend redirect URL (enables the PDF download button).
+async function getBookingNumberForTxn(merchantTxnId: string): Promise<string | null> {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { merchantTxnId },
+      select: { id: true, purpose: true },
+    });
+    if (!payment || payment.purpose !== 'campaign') return null;
+    const reg = await prisma.campaignRegistration.findUnique({
+      where: { paymentId: payment.id },
+      select: { bookingNumber: true },
+    });
+    return reg?.bookingNumber ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function deriveCallbackType(path: string): string {
   if (path.includes('success')) return 'success';
   if (path.includes('fail')) return 'fail';
@@ -141,7 +160,10 @@ router.use(requireCallbackIP);
 router.get('/callback/success', validateMerchantTxnId, async (req: Request, res: Response) => {
   const merchantTxnId = req.query.merchantTransactionId as string;
   try {
-    const status = await settlePayment(merchantTxnId);
+    const [status, bookingNumber] = await Promise.all([
+      settlePayment(merchantTxnId),
+      getBookingNumberForTxn(merchantTxnId),
+    ]);
     const outcome = status === 'success' ? 'settled_success' : 'settled_failed';
     void logCallbackAttempt({
       callbackType: 'success',
@@ -151,11 +173,12 @@ router.get('/callback/success', validateMerchantTxnId, async (req: Request, res:
       userAgent: req.headers['user-agent'] ?? null,
     });
 
+    const bookingQs = bookingNumber ? `&booking=${encodeURIComponent(bookingNumber)}` : '';
     if (status === 'success') {
-      return res.redirect(`${config.FRONTEND_URL}/payment/success?txn=${merchantTxnId}`);
+      return res.redirect(`${config.FRONTEND_URL}/payment/success?txn=${merchantTxnId}${bookingQs}`);
     }
     return res.redirect(
-      `${config.FRONTEND_URL}/payment/failed?txn=${merchantTxnId}&reason=verification_failed`,
+      `${config.FRONTEND_URL}/payment/failed?txn=${merchantTxnId}&reason=verification_failed${bookingQs}`,
     );
   } catch {
     void logCallbackAttempt({
@@ -172,9 +195,10 @@ router.get('/callback/success', validateMerchantTxnId, async (req: Request, res:
 // ─── Fail callback ────────────────────────────────────────────────
 router.get('/callback/fail', validateMerchantTxnId, async (req: Request, res: Response) => {
   const merchantTxnId = req.query.merchantTransactionId as string;
-  try {
-    await settlePayment(merchantTxnId);
-  } catch { /* best effort */ }
+  const [, bookingNumber] = await Promise.all([
+    settlePayment(merchantTxnId).catch(() => null),
+    getBookingNumberForTxn(merchantTxnId),
+  ]);
 
   void logCallbackAttempt({
     callbackType: 'fail',
@@ -184,17 +208,19 @@ router.get('/callback/fail', validateMerchantTxnId, async (req: Request, res: Re
     userAgent: req.headers['user-agent'] ?? null,
   });
 
+  const bookingQs = bookingNumber ? `&booking=${encodeURIComponent(bookingNumber)}` : '';
   return res.redirect(
-    `${config.FRONTEND_URL}/payment/failed?txn=${merchantTxnId}&reason=payment_failed`,
+    `${config.FRONTEND_URL}/payment/failed?txn=${merchantTxnId}&reason=payment_failed${bookingQs}`,
   );
 });
 
 // ─── Cancel callback ──────────────────────────────────────────────
 router.get('/callback/cancel', validateMerchantTxnId, async (req: Request, res: Response) => {
   const merchantTxnId = req.query.merchantTransactionId as string;
-  try {
-    await settlePayment(merchantTxnId);
-  } catch { /* best effort */ }
+  const [, bookingNumber] = await Promise.all([
+    settlePayment(merchantTxnId).catch(() => null),
+    getBookingNumberForTxn(merchantTxnId),
+  ]);
 
   void logCallbackAttempt({
     callbackType: 'cancel',
@@ -204,8 +230,9 @@ router.get('/callback/cancel', validateMerchantTxnId, async (req: Request, res: 
     userAgent: req.headers['user-agent'] ?? null,
   });
 
+  const bookingQs = bookingNumber ? `&booking=${encodeURIComponent(bookingNumber)}` : '';
   return res.redirect(
-    `${config.FRONTEND_URL}/payment/failed?txn=${merchantTxnId}&reason=cancelled`,
+    `${config.FRONTEND_URL}/payment/failed?txn=${merchantTxnId}&reason=cancelled${bookingQs}`,
   );
 });
 

@@ -18,6 +18,7 @@ const adminRouter = Router();
 publicRouter.post('/register', publicFormLimiter, validate(registerCampaignSchema, 'body'), ctrl.register);
 publicRouter.post('/waitlist', publicFormLimiter, validate(joinWaitlistSchema, 'body'), ctrl.joinWaitlist);
 publicRouter.get('/booking/:bookingNumber', publicReadLimiter, ctrl.getByBookingNumber);
+publicRouter.get('/booking/:bookingNumber/slip.pdf', publicReadLimiter, ctrl.getBookingSlipPdf);
 
 // ─── Admin routes ─────────────────────────────────────────────────
 adminRouter.use(authenticate);

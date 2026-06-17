@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendSuccess, sendCreated } from '../../utils/response';
 import * as svc from './campaign-registrations.service';
+import * as repo from './campaign-registrations.repository';
+import { streamBookingSlipPdf } from './booking-slip.pdf';
+import { AppError } from '../../utils/AppError';
 import type { RegisterCampaignDto, JoinWaitlistDto, RegistrationListQuery, WaitlistListQuery } from './campaign-registrations.types';
 
 // ─── Public ───────────────────────────────────────────────────────
@@ -23,6 +26,20 @@ export async function getByBookingNumber(req: Request, res: Response, next: Next
   try {
     const reg = await svc.getRegistrationByBookingNumber(req.params.bookingNumber);
     sendSuccess(res, reg);
+  } catch (err) { next(err); }
+}
+
+export async function getBookingSlipPdf(req: Request, res: Response, next: NextFunction) {
+  try {
+    const reg = await repo.getRegistrationByBookingNumber(req.params.bookingNumber);
+    if (!reg) throw AppError.notFound('Booking');
+
+    const filename = `booking-${reg.bookingNumber}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
+
+    streamBookingSlipPdf(reg, res);
   } catch (err) { next(err); }
 }
 
