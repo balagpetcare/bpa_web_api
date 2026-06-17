@@ -129,6 +129,10 @@ app.use(`${v1}/admin/vaccine-catalog`, vaccineCatalogRouter);
 app.use(`${v1}/admin/pets`, petsRouter);
 app.use(`${v1}/admin/doctors`, doctorsRouter);
 app.use(`${v1}/admin/campaigns`, campaignsRouter);
+// Compatibility alias: production proxies may strip the /api/v1 prefix before
+// forwarding to this server (e.g. nginx proxy_pass with path rewrite).
+// The router is self-contained with authenticate + authorize so this is safe.
+app.use('/admin/campaigns', campaignsRouter);
 app.use(`${v1}/public/campaign-registrations`, campaignRegistrationsPublicRouter);
 app.use(`${v1}/admin/campaign-registrations`, campaignRegistrationsAdminRouter);
 app.use(`${v1}/admin/campaign-registrations`, campaignScanRouter);
