@@ -1227,18 +1227,20 @@ model CampaignVolunteer {
 // ─── Campaign Registrations ────────────────────────────────────────
 
 model CampaignRegistration {
-  id             String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  bookingNumber  String                     @unique @map("booking_number") @db.VarChar(30)
-  campaignId     String                     @map("campaign_id") @db.Uuid
-  sessionId      String                     @map("session_id") @db.Uuid
-  ownerId        String                     @map("owner_id") @db.Uuid
-  status         CampaignRegistrationStatus @default(pending_payment)
-  totalAmountBdt Decimal                    @map("total_amount_bdt") @db.Decimal(10, 2)
-  paymentId      String?                    @unique @map("payment_id") @db.Uuid
-  isGuest        Boolean                    @default(false) @map("is_guest")
-  notes          String?                    @db.Text
-  createdAt      DateTime                   @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime                   @updatedAt @map("updated_at") @db.Timestamptz
+  id               String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingNumber    String                     @unique @map("booking_number") @db.VarChar(30)
+  campaignId       String                     @map("campaign_id") @db.Uuid
+  sessionId        String                     @map("session_id") @db.Uuid
+  ownerId          String                     @map("owner_id") @db.Uuid
+  status           CampaignRegistrationStatus @default(pending_payment)
+  totalAmountBdt   Decimal                    @map("total_amount_bdt") @db.Decimal(10, 2)
+  paymentId        String?                    @unique @map("payment_id") @db.Uuid
+  isGuest          Boolean                    @default(false) @map("is_guest")
+  notes            String?                    @db.Text
+  staffQrToken     String?                    @unique @map("staff_qr_token") @db.VarChar(64)
+  staffQrIssuedAt  DateTime?                  @map("staff_qr_issued_at") @db.Timestamptz
+  createdAt        DateTime                   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime                   @updatedAt @map("updated_at") @db.Timestamptz
 
   campaign    Campaign        @relation(fields: [campaignId], references: [id])
   session     CampaignSession @relation(fields: [sessionId], references: [id])

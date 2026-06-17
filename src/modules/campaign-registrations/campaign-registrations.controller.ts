@@ -34,12 +34,21 @@ export async function getBookingSlipPdf(req: Request, res: Response, next: NextF
     const reg = await repo.getRegistrationByBookingNumber(req.params.bookingNumber);
     if (!reg) throw AppError.notFound('Booking');
 
-    const filename = `booking-${reg.bookingNumber}.pdf`;
+    // Ensure staffQrToken exists for older bookings created before this field was added
+    if (!reg.staffQrToken) {
+      await repo.ensureStaffQrToken(reg.id);
+      // Re-fetch to get the token
+      const updated = await repo.getRegistrationByBookingNumber(req.params.bookingNumber);
+      if (!updated) throw AppError.notFound('Booking');
+      Object.assign(reg, { staffQrToken: updated.staffQrToken });
+    }
+
+    const filename = `BPA-Booking-Slip-${reg.bookingNumber}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Cache-Control', 'no-store');
 
-    streamBookingSlipPdf(reg, res);
+    await streamBookingSlipPdf(reg, res);
   } catch (err) { next(err); }
 }
 

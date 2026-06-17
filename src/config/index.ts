@@ -53,6 +53,7 @@ const envSchema = z.object({
 
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
   BACKEND_URL: z.string().url().default('http://localhost:4000'),
+  ADMIN_BASE_URL: z.string().url().default('http://localhost:3001'),
 
   // Comma-separated list of IPs allowed to hit payment callback endpoints.
   // When empty (development default), no IP filtering is applied.

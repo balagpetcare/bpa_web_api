@@ -1,7 +1,12 @@
+import { randomBytes } from 'crypto';
 import { Prisma, CampaignRegistrationStatus, WaitlistStatus } from '@prisma/client';
 import { prisma } from '../../database/prisma';
 import { parsePaginationQuery, buildPaginationMeta } from '../../utils/response';
 import type { RegistrationListQuery, WaitlistListQuery } from './campaign-registrations.types';
+
+export function generateStaffQrToken(): string {
+  return randomBytes(32).toString('hex'); // 64-char hex, unguessable
+}
 
 const registrationInclude = {
   campaign: { select: { id: true, title: true, basePriceBdt: true } },
@@ -71,6 +76,8 @@ export async function createRegistration(data: {
       totalAmountBdt: data.totalAmountBdt,
       isGuest: data.isGuest,
       notes: data.notes,
+      staffQrToken: generateStaffQrToken(),
+      staffQrIssuedAt: new Date(),
       petBookings: {
         create: data.petIds.map(petId => ({
           petId,
@@ -82,6 +89,36 @@ export async function createRegistration(data: {
       },
     },
     include: registrationInclude,
+  });
+}
+
+export async function ensureStaffQrToken(registrationId: string): Promise<string> {
+  const reg = await prisma.campaignRegistration.findUniqueOrThrow({ where: { id: registrationId }, select: { id: true, staffQrToken: true } });
+  if (reg.staffQrToken) return reg.staffQrToken;
+  const token = generateStaffQrToken();
+  await prisma.campaignRegistration.update({
+    where: { id: registrationId },
+    data: { staffQrToken: token, staffQrIssuedAt: new Date() },
+  });
+  return token;
+}
+
+export async function getRegistrationByStaffQrToken(token: string) {
+  return prisma.campaignRegistration.findUnique({
+    where: { staffQrToken: token },
+    include: {
+      campaign: { select: { id: true, title: true, basePriceBdt: true } },
+      session: { select: { id: true, sessionDate: true, startTime: true, endTime: true, venue: { select: { name: true, address: true } } } },
+      owner: { select: { id: true, ownerName: true, mobile: true, email: true } },
+      payment: { select: { id: true, status: true, merchantTxnId: true, amount: true } },
+      petBookings: {
+        include: {
+          pet: { select: { id: true, name: true, petType: true, breed: true } },
+          services: { include: { campaignService: { select: { id: true, name: true, isRequired: true } } } },
+          certificates: { where: { supersededAt: null }, select: { id: true, certificateNumber: true, verifyToken: true, issuedAt: true } },
+        },
+      },
+    },
   });
 }
 
