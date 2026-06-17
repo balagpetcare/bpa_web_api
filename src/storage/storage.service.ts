@@ -48,8 +48,11 @@ export function getPublicUrl(objectKey: string): string {
     const base = (config.S3_PUBLIC_BASE_URL ?? config.MEDIA_PUBLIC_BASE_URL ?? config.BACKEND_URL).replace(/\/$/, '');
     return `${base}/${key}`;
   }
-  // local: serve through the API's /uploads static mount
-  return `${config.BACKEND_URL.replace(/\/$/, '')}/uploads/${path.basename(key)}`;
+  // local: serve through the API's /uploads static mount.
+  // MEDIA_PUBLIC_BASE_URL lets production override the host without changing BACKEND_URL.
+  // e.g. MEDIA_PUBLIC_BASE_URL=https://api.example.com, BACKEND_URL=http://localhost:4000
+  const localBase = (config.MEDIA_PUBLIC_BASE_URL ?? config.BACKEND_URL).replace(/\/$/, '');
+  return `${localBase}/uploads/${path.basename(key)}`;
 }
 
 export interface UploadResult {
