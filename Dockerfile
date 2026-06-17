@@ -29,6 +29,8 @@ RUN addgroup --system --gid 1001 bpa && \
 
 # Copy compiled output
 COPY --from=builder  --chown=bpa:bpa /app/dist          ./dist
+# Copy project assets used at runtime, including embedded PDF fonts.
+COPY --from=builder  --chown=bpa:bpa /app/assets        ./assets
 # Copy Prisma schema and generated client so migrate deploy works at runtime
 COPY --from=builder  --chown=bpa:bpa /app/prisma        ./prisma
 COPY --from=builder  --chown=bpa:bpa /app/node_modules/.prisma ./node_modules/.prisma
