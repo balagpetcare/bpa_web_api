@@ -86,10 +86,14 @@ const envSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_FORCE_PATH_STYLE: z.enum(['true', 'false']).default('false'), // 'true' for MinIO
 
-  // Full public base URL for media served to clients.
-  //   MinIO (local):  http://127.0.0.1:9000/bpa-pets
-  //   AWS S3:         https://bpa-pets.s3.amazonaws.com
-  //   Local fallback: leave unset → BACKEND_URL/uploads is used
+  // Public base URL for media files served to clients in S3 mode.
+  //   Backblaze B2: https://f005.backblazeb2.com/file/bpa-production-media
+  //   AWS S3:       https://bpa-pets.s3.amazonaws.com
+  //   MinIO (local):http://127.0.0.1:9000/bpa-pets
+  // URL is constructed as: ${S3_PUBLIC_BASE_URL}/${objectKey}
+  S3_PUBLIC_BASE_URL: z.string().optional(),
+
+  // Legacy alias — kept for backwards compatibility; S3_PUBLIC_BASE_URL takes precedence.
   MEDIA_PUBLIC_BASE_URL: z.string().optional(),
 });
 

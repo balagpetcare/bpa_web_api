@@ -43,14 +43,13 @@ export function buildObjectKey(originalname: string): string {
 }
 
 export function getPublicUrl(objectKey: string): string {
-  const base = (config.MEDIA_PUBLIC_BASE_URL ?? config.BACKEND_URL).replace(/\/$/, '');
+  const key = objectKey.replace(/^\//, '');
   if (config.STORAGE_DRIVER === 's3') {
-    // If S3_ENDPOINT is local MinIO, ensure base URL is correct.
-    // .env has MEDIA_PUBLIC_BASE_URL=http://127.0.0.1:9000/bpa-pets
-    return `${base}/${objectKey}`;
+    const base = (config.S3_PUBLIC_BASE_URL ?? config.MEDIA_PUBLIC_BASE_URL ?? config.BACKEND_URL).replace(/\/$/, '');
+    return `${base}/${key}`;
   }
-  // local: only the filename part lives under /uploads
-  return `${config.BACKEND_URL}/uploads/${path.basename(objectKey)}`;
+  // local: serve through the API's /uploads static mount
+  return `${config.BACKEND_URL.replace(/\/$/, '')}/uploads/${path.basename(key)}`;
 }
 
 export interface UploadResult {
