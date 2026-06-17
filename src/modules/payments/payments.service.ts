@@ -30,8 +30,18 @@ export async function settlePayment(merchantTxnId: string): Promise<SettleResult
 
   try {
     const result = await eps.verifyPayment({ merchantTransactionId: merchantTxnId });
+    const resultRecord = result as unknown as Record<string, unknown>;
     epsStatus = result.Status;
-    epsPayload = result as unknown as Record<string, unknown>;
+    epsPayload = resultRecord;
+    const epsTxnId =
+      typeof resultRecord.EPSTransactionId === 'string'
+        ? String(resultRecord.EPSTransactionId).trim()
+        : typeof resultRecord.EpsTransactionId === 'string'
+          ? String(resultRecord.EpsTransactionId).trim()
+          : '';
+    if (epsTxnId) {
+      await repo.updatePaymentEpsTxnId(payment.id, epsTxnId);
+    }
   } catch {
     // Network or EPS error — mark as pending_review for manual follow-up
     return 'pending';

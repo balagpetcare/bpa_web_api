@@ -145,6 +145,14 @@ function containsLocalhost(url: string): boolean {
   return url.includes('localhost') || url.includes('127.0.0.1');
 }
 
+function buildCallbackUrl(apiBase: string, callbackPath: string, bookingRef?: string): string {
+  const url = new URL(`${apiBase}${callbackPath}`);
+  if (bookingRef) {
+    url.searchParams.set('bookingRef', bookingRef);
+  }
+  return url.toString();
+}
+
 /**
  * Builds EPS callback URLs from BACKEND_URL, validates them, logs them
  * (without credentials), then calls eps.initializePayment().
@@ -156,14 +164,15 @@ function containsLocalhost(url: string): boolean {
 export async function initializeEpsPayment(params: EpsPaymentParams) {
   // Normalize phone before anything else — throws 400 if the number is invalid
   const customerPhone = normalizeBdPhone(params.customerPhone);
+  const { bookingRef, ...epsParams } = params;
 
   const apiBase = config.BACKEND_URL.replace(/\/$/, '');
   // Embed bookingRef in every callback URL so the backend can recover the
   // booking even when the gateway omits or garbles the merchantTransactionId.
-  const bqParam   = params.bookingRef ? `?bookingRef=${encodeURIComponent(params.bookingRef)}` : '';
-  const successUrl = `${apiBase}/api/v1/payment/callback/success${bqParam}`;
-  const failUrl    = `${apiBase}/api/v1/payment/callback/fail${bqParam}`;
-  const cancelUrl  = `${apiBase}/api/v1/payment/callback/cancel${bqParam}`;
+  const successUrl = buildCallbackUrl(apiBase, '/api/v1/payment/callback/success', bookingRef);
+  const failUrl = buildCallbackUrl(apiBase, '/api/v1/payment/callback/fail', bookingRef);
+  const cancelUrl = buildCallbackUrl(apiBase, '/api/v1/payment/callback/cancel', bookingRef);
+  const epsPayload = { ...epsParams, customerPhone, successUrl, failUrl, cancelUrl };
 
   // Production guard: localhost callback URLs will never be reachable by EPS.
   // Throw here — before the SDK call — so the error surfaces in logs immediately.
@@ -184,12 +193,12 @@ export async function initializeEpsPayment(params: EpsPaymentParams) {
     `[EPS] initializePayment | ` +
     `apiBase=${apiBase} | ` +
     `frontendBase=${config.FRONTEND_URL} | ` +
-    `successUrl=${successUrl} | ` +
-    `failUrl=${failUrl} | ` +
-    `cancelUrl=${cancelUrl}`,
+    `successUrl=${epsPayload.successUrl} | ` +
+    `failUrl=${epsPayload.failUrl} | ` +
+    `cancelUrl=${epsPayload.cancelUrl}`,
   );
 
-  return getEPS().initializePayment({ ...params, customerPhone, successUrl, failUrl, cancelUrl });
+  return getEPS().initializePayment(epsPayload);
 }
 
 // ─── Membership fee lookup ────────────────────────────────────────

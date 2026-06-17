@@ -6,75 +6,263 @@ import { callbackLimiter } from '../../middlewares/rateLimiter';
 
 const router = Router();
 
-// ─── Merchant TXN ID format ───────────────────────────────────────
-// Format: YYYYMMDDHHmmssSSS — exactly 17 digits
 const MERCHANT_TXN_ID_RE = /^\d{17}$/;
+const UUID_RE = /^[0-9a-f-]{36}$/i;
 
-// All param names any EPS / SSL Commerz variant may send for the txn ID.
 const TXN_PARAM_NAMES = [
-  'merchantTransactionId',
-  'merchantTxnId',
+  'merchanttransactionid', // MerchantTransactionId / merchantTransactionId
+  'merchanttxnid',
   'txn',
-  'transactionId',
+  'transactionid',
   'transaction_id',
-  'tran_id',         // SSL Commerz / EPS alternate
-  'val_id',          // SSL Commerz validation ID (sometimes 17-digit)
-  'mer_txnid',       // EPS alternate
-  'epwTxnId',
-  'paymentRefId',
+  'tran_id',
+  'val_id',
+  'mer_txnid',
+  'epwtxnid',
+  'paymentrefid',
   'payment_ref_id',
   'ssl_txn_id',
 ] as const;
 
-// Param names for a fallback booking / order reference.
-// bookingRef is listed first because we embed it directly in callback URLs.
-const ORDER_PARAM_NAMES = [
-  'bookingRef',
-  'bookingReference',
-  'booking_ref',
-  'value_a',         // EPS custom value (we store booking number here)
-  'valueA',          // alternate casing EPS may send back
-  'orderId',
-  'customerOrderId',
-  'reference',
+const EPS_TXN_PARAM_NAMES = [
+  'epstransactionid', // EPSTransactionId
+  'eps_transaction_id',
+  'gatewaytransactionid',
+  'gateway_transaction_id',
+  'providertransactionid',
+  'provider_transaction_id',
+  'epstransid',
+  'epstrxnid',
 ] as const;
 
-// Sensitive fields to mask in logged payloads
+const STATUS_PARAM_NAMES = ['status'] as const; // Status
+const ERROR_CODE_PARAM_NAMES = ['errorcode', 'error_code'] as const; // ErrorCode
+
+const ORDER_PARAM_NAMES = [
+  'bookingref',
+  'bookingreference',
+  'booking_ref',
+  'value_a',
+  'valuea',
+  'orderid',
+  'customerorderid',
+  'reference',
+  'value_b',
+  'valueb',
+] as const;
+
+const DIRECT_BOOKING_PARAM_NAMES = [
+  'bookingref',
+  'bookingreference',
+  'booking_ref',
+  'value_a',
+  'valuea',
+  'value_b',
+  'valueb',
+] as const;
+
+const PAYMENT_REF_PARAM_NAMES = [
+  'customerorderid',
+  'orderid',
+  'value_b',
+  'valueb',
+] as const;
+
 const SENSITIVE_KEYS = new Set([
   'password', 'passwd', 'hash', 'hashkey', 'hash_key',
   'signature', 'sign', 'token', 'secret', 'key',
   'card', 'cvv', 'pan',
 ]);
 
+type NormalizedQuery = Record<string, string>;
+
+type CallbackPayment = {
+  id: string;
+  merchantTxnId: string | null;
+  epsTxnId: string | null;
+  gatewayRef: string | null;
+  entityType: string | null;
+  purpose: string;
+};
+
+function normalizeQuery(query: Request['query']): NormalizedQuery {
+  const normalized: NormalizedQuery = {};
+
+  for (const [key, value] of Object.entries(query)) {
+    if (typeof value === 'string') {
+      normalized[key.toLowerCase()] = value;
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      const firstString = value.find((item): item is string => typeof item === 'string');
+      if (firstString) {
+        normalized[key.toLowerCase()] = firstString;
+      }
+    }
+  }
+
+  return normalized;
+}
+
+function getQueryValue(query: NormalizedQuery, names: readonly string[]): string | null {
+  for (const name of names) {
+    const value = query[name];
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  return null;
+}
+
+function uniqueNonEmpty(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => !!value))];
+}
+
+function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
 function maskPayload(query: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(query)) {
-    if (SENSITIVE_KEYS.has(k.toLowerCase())) {
-      out[k] = '[REDACTED]';
+  for (const [key, value] of Object.entries(query)) {
+    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
+      out[key] = '[REDACTED]';
     } else {
-      out[k] = v;
+      out[key] = value;
     }
   }
   return out;
 }
 
-function extractMerchantTxnId(query: Request['query']): { txnId: string; paramName: string } | null {
+function extractMerchantTxnId(query: NormalizedQuery): { txnId: string; paramName: string } | null {
   for (const name of TXN_PARAM_NAMES) {
-    const val = query[name];
-    if (typeof val === 'string' && MERCHANT_TXN_ID_RE.test(val)) return { txnId: val, paramName: name };
+    const txnId = getQueryValue(query, [name]);
+    if (txnId) return { txnId, paramName: name };
   }
   return null;
 }
 
-function extractOrderRef(query: Request['query']): string | null {
-  for (const name of ORDER_PARAM_NAMES) {
-    const val = query[name];
-    if (typeof val === 'string' && val.trim()) return val.trim();
+function extractEpsTxnId(query: NormalizedQuery): string | null {
+  return getQueryValue(query, EPS_TXN_PARAM_NAMES);
+}
+
+function extractCallbackStatus(query: NormalizedQuery): string | null {
+  return getQueryValue(query, STATUS_PARAM_NAMES);
+}
+
+function extractCallbackErrorCode(query: NormalizedQuery): string | null {
+  return getQueryValue(query, ERROR_CODE_PARAM_NAMES);
+}
+
+function extractOrderRef(query: NormalizedQuery): string | null {
+  return getQueryValue(query, ORDER_PARAM_NAMES);
+}
+
+async function findPaymentByReference(ref: string): Promise<CallbackPayment | null> {
+  const orWhere: Array<{
+    merchantTxnId?: string;
+    gatewayRef?: string;
+    epsTxnId?: string;
+    id?: string;
+  }> = [
+    { merchantTxnId: ref },
+    { gatewayRef: ref },
+    { epsTxnId: ref },
+  ];
+
+  if (isUuid(ref)) {
+    orWhere.push({ id: ref });
   }
+
+  return prisma.payment.findFirst({
+    where: { OR: orWhere },
+    select: {
+      id: true,
+      merchantTxnId: true,
+      epsTxnId: true,
+      gatewayRef: true,
+      entityType: true,
+      purpose: true,
+    },
+  });
+}
+
+function isCampaignPayment(payment: CallbackPayment): boolean {
+  return payment.entityType === 'campaign' || payment.purpose.startsWith('campaign');
+}
+
+async function findPaymentForCallback(
+  query: NormalizedQuery,
+  merchantTxnRef?: string | null,
+  epsTxnId?: string | null,
+): Promise<CallbackPayment | null> {
+  const refs = uniqueNonEmpty([
+    merchantTxnRef ?? null,
+    getQueryValue(query, TXN_PARAM_NAMES),
+    getQueryValue(query, PAYMENT_REF_PARAM_NAMES),
+    epsTxnId ?? null,
+    getQueryValue(query, EPS_TXN_PARAM_NAMES),
+  ]);
+
+  for (const ref of refs) {
+    const payment = await findPaymentByReference(ref);
+    if (payment) return payment;
+  }
+
   return null;
 }
 
-// ─── Allowed EPS callback IP list ────────────────────────────────
+async function findCampaignBookingByPaymentId(paymentId: string): Promise<string | null> {
+  const reg = await prisma.campaignRegistration.findFirst({
+    where: { paymentId },
+    select: { bookingNumber: true },
+  });
+  return reg?.bookingNumber ?? null;
+}
+
+async function recoverBooking(
+  query: NormalizedQuery,
+  merchantTxnRef?: string | null,
+  epsTxnId?: string | null,
+): Promise<{ bookingNumber: string | null; payment: CallbackPayment | null }> {
+  const bookingRef = getQueryValue(query, DIRECT_BOOKING_PARAM_NAMES);
+
+  if (bookingRef?.startsWith('BPA-')) {
+    const reg = await prisma.campaignRegistration.findUnique({
+      where: { bookingNumber: bookingRef },
+      select: { bookingNumber: true, paymentId: true },
+    });
+
+    if (reg) {
+      const payment = reg.paymentId ? await findPaymentByReference(reg.paymentId) : null;
+      return { bookingNumber: reg.bookingNumber, payment };
+    }
+  }
+
+  const payment = await findPaymentForCallback(query, merchantTxnRef, epsTxnId);
+  if (!payment || !isCampaignPayment(payment)) {
+    return { bookingNumber: null, payment };
+  }
+
+  const bookingNumber = await findCampaignBookingByPaymentId(payment.id);
+  return { bookingNumber, payment };
+}
+
+async function persistEpsTxnId(paymentId: string | null | undefined, epsTxnId: string | null): Promise<void> {
+  if (!paymentId || !epsTxnId) return;
+
+  try {
+    await prisma.payment.update({
+      where: { id: paymentId },
+      data: { epsTxnId, gatewayRef: epsTxnId },
+    });
+  } catch {
+    // Gateway ref persistence should never crash the callback flow
+  }
+}
+
 const allowedCallbackIPs: Set<string> = new Set(
   config.EPS_CALLBACK_IPS
     ? config.EPS_CALLBACK_IPS.split(',').map((ip) => ip.trim()).filter(Boolean)
@@ -91,68 +279,6 @@ function requireCallbackIP(req: Request, res: Response, next: NextFunction): voi
   next();
 }
 
-// ─── Booking lookup from any available ref ────────────────────────
-// Order of priority:
-//   1. bookingRef (embedded by us in callback URL) → exact booking number
-//   2. value_a / valueA (EPS custom field we set to booking number)
-//   3. orderId / customerOrderId → payment UUID → registration
-//   4. merchantTxnId (17-digit) → registration
-async function findBookingNumber(
-  query: Request['query'],
-  merchantTxnId?: string,
-): Promise<string | null> {
-  // 1 + 2: booking number directly in query params
-  const directBookingParams = ['bookingRef', 'bookingReference', 'booking_ref', 'value_a', 'valueA'] as const;
-  for (const name of directBookingParams) {
-    const val = query[name];
-    if (typeof val === 'string' && val.trim().startsWith('BPA-')) {
-      // Verify it exists
-      const reg = await prisma.campaignRegistration.findUnique({
-        where: { bookingNumber: val.trim() },
-        select: { bookingNumber: true },
-      });
-      if (reg) return reg.bookingNumber;
-    }
-  }
-
-  // 3: order/customer ID is a payment UUID
-  const paymentUuidParams = ['customerOrderId', 'orderId', 'value_b', 'valueB'] as const;
-  for (const name of paymentUuidParams) {
-    const val = query[name];
-    if (typeof val === 'string' && /^[0-9a-f-]{36}$/i.test(val)) {
-      const reg = await prisma.campaignRegistration.findFirst({
-        where: { paymentId: val.trim() },
-        select: { bookingNumber: true },
-      });
-      if (reg) return reg.bookingNumber;
-    }
-  }
-
-  // 4: via merchant txn ID
-  if (merchantTxnId) {
-    try {
-      const payment = await prisma.payment.findUnique({
-        where: { merchantTxnId },
-        select: { id: true, entityType: true, purpose: true },
-      });
-      if (!payment) return null;
-      const isCampaign = payment.entityType === 'campaign' || payment.purpose?.startsWith('campaign');
-      if (!isCampaign) return null;
-      const reg = await prisma.campaignRegistration.findFirst({
-        where: { paymentId: payment.id },
-        select: { bookingNumber: true },
-      });
-      return reg?.bookingNumber ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
-
-// ─── Mark a pending payment as pending_review ─────────────────────
-// Called in the missing-txn path so the admin can verify manually.
 async function markPendingReviewByBookingNumber(bookingNumber: string): Promise<void> {
   try {
     const reg = await prisma.campaignRegistration.findUnique({
@@ -160,14 +286,22 @@ async function markPendingReviewByBookingNumber(bookingNumber: string): Promise<
       select: { paymentId: true },
     });
     if (!reg?.paymentId) return;
+
     const payment = await prisma.payment.findUnique({
       where: { id: reg.paymentId },
       select: { id: true, status: true },
     });
     if (!payment || payment.status !== 'pending') return;
+
     await prisma.payment.update({
       where: { id: payment.id },
-      data: { status: 'pending_review', payload: { markedVia: 'missing_txn_callback', markedAt: new Date().toISOString() } as never },
+      data: {
+        status: 'pending_review',
+        payload: {
+          markedVia: 'missing_txn_callback',
+          markedAt: new Date().toISOString(),
+        } as never,
+      },
     });
   } catch {
     // Never crash the callback flow
@@ -179,6 +313,10 @@ function deriveCallbackType(path: string): string {
   if (path.includes('fail')) return 'fail';
   if (path.includes('cancel')) return 'cancel';
   return 'unknown';
+}
+
+function getUserAgent(req: Request): string | null {
+  return typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : null;
 }
 
 async function logCallbackAttempt(opts: {
@@ -209,84 +347,116 @@ async function logCallbackAttempt(opts: {
   }
 }
 
-// ─── merchantTxnId validation middleware ─────────────────────────
-function validateMerchantTxnId(req: Request, res: Response, next: NextFunction): void {
-  const found = extractMerchantTxnId(req.query);
+async function redirectMissingMerchantTxn(
+  req: Request,
+  res: Response,
+  callbackType: string,
+  masked: Record<string, unknown>,
+  merchantTxnRef?: string | null,
+  epsTxnId?: string | null,
+): Promise<void> {
+  const normalizedQuery = normalizeQuery(req.query);
+  const recovery = await recoverBooking(normalizedQuery, merchantTxnRef, epsTxnId);
 
-  if (!found) {
-    const callbackType = deriveCallbackType(req.path);
-    const masked = maskPayload(req.query as Record<string, unknown>);
-    console.warn(
-      `[EPS callback:${callbackType}] No valid 17-digit merchantTxnId. ` +
-      `Keys: ${Object.keys(req.query).join(', ') || '(none)'} | ` +
-      `Payload: ${JSON.stringify(masked)}`,
-    );
+  await persistEpsTxnId(recovery.payment?.id, epsTxnId ?? null);
 
-    // Try to recover booking from any available ref in the payload
-    const orderRef = extractOrderRef(req.query);
-
-    // Fire async recovery: mark as pending_review + redirect with booking=
-    void (async () => {
-      let bookingNumber: string | null = null;
-      try {
-        bookingNumber = await findBookingNumber(req.query);
-        if (bookingNumber) {
-          await markPendingReviewByBookingNumber(bookingNumber);
-        }
-      } catch { /* recovery failure must not affect redirect */ }
-
-      void logCallbackAttempt({
-        callbackType,
-        merchantTxnId: null,
-        outcome: bookingNumber ? 'missing_txn_booking_found' : 'rejected_invalid_id',
-        ipAddress: req.ip ?? null,
-        userAgent: req.headers['user-agent'] ?? null,
-        payload: masked,
-      });
-
-      const bookingQs = bookingNumber ? `&booking=${encodeURIComponent(bookingNumber)}` : '';
-      const refQs     = !bookingNumber && orderRef ? `&ref=${encodeURIComponent(orderRef)}` : '';
-      res.redirect(`${config.FRONTEND_URL}/payment/failed?reason=missing_txn${bookingQs}${refQs}`);
-    })();
-    return;
+  if (recovery.bookingNumber) {
+    await markPendingReviewByBookingNumber(recovery.bookingNumber);
   }
 
-  if (found.paramName !== 'merchantTransactionId') {
-    console.log(`[EPS callback] TXN ID in non-standard param "${found.paramName}" — normalizing`);
-  }
-  req.query.merchantTransactionId = found.txnId;
-  next();
+  void logCallbackAttempt({
+    callbackType,
+    merchantTxnId: merchantTxnRef ?? null,
+    outcome: recovery.bookingNumber ? 'missing_txn_booking_found' : 'rejected_invalid_id',
+    ipAddress: req.ip ?? null,
+    userAgent: getUserAgent(req),
+    payload: masked,
+  });
+
+  const bookingQs = recovery.bookingNumber ? `&booking=${encodeURIComponent(recovery.bookingNumber)}` : '';
+  const fallbackRef = extractOrderRef(normalizedQuery) ?? merchantTxnRef ?? epsTxnId ?? null;
+  const refQs = !recovery.bookingNumber && fallbackRef ? `&ref=${encodeURIComponent(fallbackRef)}` : '';
+  res.redirect(`${config.FRONTEND_URL}/payment/failed?reason=missing_txn${bookingQs}${refQs}`);
 }
 
-// ─── Apply global middlewares ─────────────────────────────────────
+function validateMerchantTxnId(req: Request, res: Response, next: NextFunction): void {
+  void (async () => {
+    const callbackType = deriveCallbackType(req.path);
+    const masked = maskPayload(req.query as Record<string, unknown>);
+    const normalizedQuery = normalizeQuery(req.query);
+    console.log(`[EPS callback] normalized keys=${Object.keys(normalizedQuery).join(', ') || '(none)'}`);
+
+    const found = extractMerchantTxnId(normalizedQuery);
+    const merchantTxnRef = found?.txnId ?? null;
+    const epsTxnId = extractEpsTxnId(normalizedQuery);
+    const payment = await findPaymentForCallback(normalizedQuery, merchantTxnRef, epsTxnId);
+    const canonicalMerchantTxnId =
+      payment?.merchantTxnId?.trim() ||
+      (merchantTxnRef && MERCHANT_TXN_ID_RE.test(merchantTxnRef) ? merchantTxnRef : null);
+
+    if (!canonicalMerchantTxnId) {
+      console.warn(
+        `[EPS callback:${callbackType}] No valid merchant transaction ID. ` +
+        `Keys: ${Object.keys(normalizedQuery).join(', ') || '(none)'} | ` +
+        `Payload: ${JSON.stringify(masked)}`,
+      );
+      await redirectMissingMerchantTxn(req, res, callbackType, masked, merchantTxnRef, epsTxnId);
+      return;
+    }
+
+    if (merchantTxnRef && merchantTxnRef !== canonicalMerchantTxnId) {
+      console.log(
+        `[EPS callback] TXN reference "${merchantTxnRef}" ` +
+        `normalized to merchantTransactionId=${canonicalMerchantTxnId}`,
+      );
+    }
+
+    (req.query as Record<string, unknown>).merchantTransactionId = canonicalMerchantTxnId;
+    next();
+  })().catch(next);
+}
+
 router.use(callbackLimiter);
 router.use(requireCallbackIP);
 
-// ─── Success callback ─────────────────────────────────────────────
 router.get('/callback/success', validateMerchantTxnId, async (req: Request, res: Response) => {
   const merchantTxnId = req.query.merchantTransactionId as string;
+  const normalizedQuery = normalizeQuery(req.query);
+  const epsTxnId = extractEpsTxnId(normalizedQuery);
+  const callbackStatus = extractCallbackStatus(normalizedQuery);
+  const callbackErrorCode = extractCallbackErrorCode(normalizedQuery);
   const masked = maskPayload(req.query as Record<string, unknown>);
-  console.log(`[EPS callback:success] txn=${merchantTxnId} | Payload: ${JSON.stringify(masked)}`);
+  const recovery = await recoverBooking(normalizedQuery, merchantTxnId, epsTxnId);
+
+  await persistEpsTxnId(recovery.payment?.id, epsTxnId);
+
+  console.log(
+    `[EPS callback] recovered booking=${recovery.bookingNumber ?? 'null'} ` +
+    `merchantTxn=${merchantTxnId} epsTxn=${epsTxnId ?? ''} status=${callbackStatus ?? ''}`,
+  );
+  console.log(
+    `[EPS callback:success] txn=${merchantTxnId} epsTxn=${epsTxnId ?? ''} ` +
+    `status=${callbackStatus ?? ''} errorCode=${callbackErrorCode ?? ''} | ` +
+    `Payload: ${JSON.stringify(masked)}`,
+  );
 
   try {
-    const [status, bookingNumber] = await Promise.all([
-      settlePayment(merchantTxnId),
-      findBookingNumber(req.query, merchantTxnId),
-    ]);
+    const status = await settlePayment(merchantTxnId);
 
     void logCallbackAttempt({
       callbackType: 'success',
       merchantTxnId,
       outcome: status === 'success' ? 'settled_success' : `settled_${status}`,
       ipAddress: req.ip ?? null,
-      userAgent: req.headers['user-agent'] ?? null,
+      userAgent: getUserAgent(req),
       payload: masked,
     });
 
-    const bookingQs = bookingNumber ? `&booking=${encodeURIComponent(bookingNumber)}` : '';
+    const bookingQs = recovery.bookingNumber ? `&booking=${encodeURIComponent(recovery.bookingNumber)}` : '';
     if (status === 'success') {
       return res.redirect(`${config.FRONTEND_URL}/payment/success?txn=${merchantTxnId}${bookingQs}`);
     }
+
     return res.redirect(
       `${config.FRONTEND_URL}/payment/failed?txn=${merchantTxnId}&reason=verification_failed${bookingQs}`,
     );
@@ -296,65 +466,75 @@ router.get('/callback/success', validateMerchantTxnId, async (req: Request, res:
       merchantTxnId,
       outcome: 'error',
       ipAddress: req.ip ?? null,
-      userAgent: req.headers['user-agent'] ?? null,
+      userAgent: getUserAgent(req),
       payload: masked,
     });
-    // Best-effort booking number for the error redirect
-    const bookingNumber = await findBookingNumber(req.query, merchantTxnId).catch(() => null);
-    const bookingQs = bookingNumber ? `&booking=${encodeURIComponent(bookingNumber)}` : '';
+
+    const bookingQs = recovery.bookingNumber ? `&booking=${encodeURIComponent(recovery.bookingNumber)}` : '';
     return res.redirect(`${config.FRONTEND_URL}/payment/failed?reason=error${bookingQs}`);
   }
 });
 
-// ─── Fail callback ────────────────────────────────────────────────
 router.get('/callback/fail', validateMerchantTxnId, async (req: Request, res: Response) => {
   const merchantTxnId = req.query.merchantTransactionId as string;
+  const normalizedQuery = normalizeQuery(req.query);
+  const epsTxnId = extractEpsTxnId(normalizedQuery);
+  const callbackStatus = extractCallbackStatus(normalizedQuery);
   const masked = maskPayload(req.query as Record<string, unknown>);
-  console.log(`[EPS callback:fail] txn=${merchantTxnId} | Payload: ${JSON.stringify(masked)}`);
+  const recovery = await recoverBooking(normalizedQuery, merchantTxnId, epsTxnId);
 
-  const [status, bookingNumber] = await Promise.all([
-    settlePayment(merchantTxnId).catch(() => 'failed' as const),
-    findBookingNumber(req.query, merchantTxnId),
-  ]);
+  await persistEpsTxnId(recovery.payment?.id, epsTxnId);
+
+  console.log(
+    `[EPS callback:fail] txn=${merchantTxnId} epsTxn=${epsTxnId ?? ''} ` +
+    `status=${callbackStatus ?? ''} | Payload: ${JSON.stringify(masked)}`,
+  );
+
+  const status = await settlePayment(merchantTxnId).catch(() => 'failed' as const);
 
   void logCallbackAttempt({
     callbackType: 'fail',
     merchantTxnId,
     outcome: `received_fail_settled_${status}`,
     ipAddress: req.ip ?? null,
-    userAgent: req.headers['user-agent'] ?? null,
+    userAgent: getUserAgent(req),
     payload: masked,
   });
 
-  const bookingQs = bookingNumber ? `&booking=${encodeURIComponent(bookingNumber)}` : '';
+  const bookingQs = recovery.bookingNumber ? `&booking=${encodeURIComponent(recovery.bookingNumber)}` : '';
   const reason = status === 'cancelled' ? 'cancelled' : 'payment_failed';
   return res.redirect(
     `${config.FRONTEND_URL}/payment/failed?txn=${merchantTxnId}&reason=${reason}${bookingQs}`,
   );
 });
 
-// ─── Cancel callback ──────────────────────────────────────────────
-// User explicitly cancelled at the gateway — mark directly without EPS re-verify.
 router.get('/callback/cancel', validateMerchantTxnId, async (req: Request, res: Response) => {
   const merchantTxnId = req.query.merchantTransactionId as string;
+  const normalizedQuery = normalizeQuery(req.query);
+  const epsTxnId = extractEpsTxnId(normalizedQuery);
+  const callbackStatus = extractCallbackStatus(normalizedQuery);
   const masked = maskPayload(req.query as Record<string, unknown>);
-  console.log(`[EPS callback:cancel] txn=${merchantTxnId} | Payload: ${JSON.stringify(masked)}`);
+  const recovery = await recoverBooking(normalizedQuery, merchantTxnId, epsTxnId);
 
-  const [, bookingNumber] = await Promise.all([
-    cancelPaymentRecord(merchantTxnId).catch(() => null),
-    findBookingNumber(req.query, merchantTxnId),
-  ]);
+  await persistEpsTxnId(recovery.payment?.id, epsTxnId);
+
+  console.log(
+    `[EPS callback:cancel] txn=${merchantTxnId} epsTxn=${epsTxnId ?? ''} ` +
+    `status=${callbackStatus ?? ''} | Payload: ${JSON.stringify(masked)}`,
+  );
+
+  await cancelPaymentRecord(merchantTxnId).catch(() => null);
 
   void logCallbackAttempt({
     callbackType: 'cancel',
     merchantTxnId,
     outcome: 'received_cancel',
     ipAddress: req.ip ?? null,
-    userAgent: req.headers['user-agent'] ?? null,
+    userAgent: getUserAgent(req),
     payload: masked,
   });
 
-  const bookingQs = bookingNumber ? `&booking=${encodeURIComponent(bookingNumber)}` : '';
+  const bookingQs = recovery.bookingNumber ? `&booking=${encodeURIComponent(recovery.bookingNumber)}` : '';
   return res.redirect(
     `${config.FRONTEND_URL}/payment/failed?txn=${merchantTxnId}&reason=cancelled${bookingQs}`,
   );
