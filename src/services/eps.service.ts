@@ -136,6 +136,9 @@ export interface EpsPaymentParams {
   valueA?: string;
   valueB?: string;
   valueC?: string;
+  /** When provided, appended as ?bookingRef=... to all callback URLs so the
+   *  backend can recover the booking if the gateway omits the txn ID. */
+  bookingRef?: string;
 }
 
 function containsLocalhost(url: string): boolean {
@@ -154,10 +157,13 @@ export async function initializeEpsPayment(params: EpsPaymentParams) {
   // Normalize phone before anything else — throws 400 if the number is invalid
   const customerPhone = normalizeBdPhone(params.customerPhone);
 
-  const apiBase    = config.BACKEND_URL.replace(/\/$/, '');
-  const successUrl = `${apiBase}/api/v1/payment/callback/success`;
-  const failUrl    = `${apiBase}/api/v1/payment/callback/fail`;
-  const cancelUrl  = `${apiBase}/api/v1/payment/callback/cancel`;
+  const apiBase = config.BACKEND_URL.replace(/\/$/, '');
+  // Embed bookingRef in every callback URL so the backend can recover the
+  // booking even when the gateway omits or garbles the merchantTransactionId.
+  const bqParam   = params.bookingRef ? `?bookingRef=${encodeURIComponent(params.bookingRef)}` : '';
+  const successUrl = `${apiBase}/api/v1/payment/callback/success${bqParam}`;
+  const failUrl    = `${apiBase}/api/v1/payment/callback/fail${bqParam}`;
+  const cancelUrl  = `${apiBase}/api/v1/payment/callback/cancel${bqParam}`;
 
   // Production guard: localhost callback URLs will never be reachable by EPS.
   // Throw here — before the SDK call — so the error surfaces in logs immediately.

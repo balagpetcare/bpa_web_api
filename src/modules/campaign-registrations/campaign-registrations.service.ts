@@ -182,8 +182,15 @@ export async function registerForCampaign(dto: RegisterCampaignDto) {
         customerState:    'Dhaka Division',
         customerPostcode: '1000',
         productName:      'BPA Campaign Registration',
-        valueA: payment.id,
-        valueB: 'campaign',
+        // valueA = booking number: primary recovery key when txn ID is missing
+        // valueB = payment UUID: fallback lookup via payment record
+        // valueC = entity type: routing hint for activateLinkedEntities
+        valueA: registration.bookingNumber,
+        valueB: payment.id,
+        valueC: 'campaign',
+        // Also embed booking number in callback URLs as a query param so the
+        // backend can recover the booking even if EPS omits the txn ID entirely.
+        bookingRef: registration.bookingNumber,
       });
 
       return { registration, paymentUrl: epsResult.RedirectURL, isFree: false };
