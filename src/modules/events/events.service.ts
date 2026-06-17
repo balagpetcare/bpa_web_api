@@ -183,9 +183,6 @@ export async function createRegistration(
 
     const amount = Number(event.fee);
     const merchantTxnId = generateMerchantTxnId();
-    const phone = dto.phone?.replace(/\D/g, '') || '01000000000';
-    const normalizedPhone = phone.startsWith('880') ? phone.slice(3) : phone;
-    const customerPhone = normalizedPhone.startsWith('0') ? normalizedPhone : `0${normalizedPhone}`;
 
     // Create pending registration
     const reg = await repo.createRegistration({
@@ -224,7 +221,7 @@ export async function createRegistration(
       totalAmount: amount,
       customerName:     dto.name,
       customerEmail:    dto.email,
-      customerPhone:    customerPhone,
+      customerPhone:    dto.phone ?? '',
       customerAddress:  'Bangladesh',
       customerCity:     'Dhaka',
       customerState:    'Dhaka Division',

@@ -1,5 +1,6 @@
 import { EPS } from 'eps-gateway-nodejs';
 import { config } from '../config';
+import { AppError } from '../utils/AppError';
 
 // ─── Singleton ────────────────────────────────────────────────────
 
@@ -84,6 +85,40 @@ export function generateMerchantTxnId(): string {
   ].join('');
 }
 
+// ─── Bangladesh phone normalization ──────────────────────────────
+
+// Valid Bangladesh mobile: 01[3-9]XXXXXXXX (11 digits)
+const BD_PHONE_RE = /^01[3-9]\d{8}$/;
+
+/**
+ * Normalizes a Bangladesh mobile number to the 01XXXXXXXXX format EPS requires.
+ * Handles +8801..., 8801..., 01..., and formatted variants (spaces, hyphens, brackets).
+ * Throws a 400 AppError if the result is not a valid BD mobile number.
+ */
+export function normalizeBdPhone(raw: string): string {
+  // Strip whitespace, hyphens, brackets, dots, plus signs
+  const cleaned = raw.trim().replace(/[\s\-()+.]/g, '');
+
+  let local = cleaned;
+
+  // Strip Bangladesh country code: 8801XXXXXXXXX → 1XXXXXXXX → prepend 0 below
+  if (local.startsWith('8801')) {
+    local = local.slice(3); // '880' removed, leaves '1XXXXXXXX' (10 digits)
+  }
+
+  // A 10-digit number without leading 0 (e.g. after country-code strip)
+  if (!local.startsWith('0') && local.length === 10) {
+    local = '0' + local;
+  }
+
+  if (!BD_PHONE_RE.test(local)) {
+    throw AppError.badRequest(
+      `Invalid phone number. Expected Bangladesh mobile format: 01XXXXXXXXX (e.g. 01712345678). Received: "${raw}"`,
+    );
+  }
+  return local;
+}
+
 // ─── Centralized payment initialization ──────────────────────────
 
 export interface EpsPaymentParams {
@@ -116,6 +151,9 @@ function containsLocalhost(url: string): boolean {
  * production localhost guard.
  */
 export async function initializeEpsPayment(params: EpsPaymentParams) {
+  // Normalize phone before anything else — throws 400 if the number is invalid
+  const customerPhone = normalizeBdPhone(params.customerPhone);
+
   const apiBase    = config.BACKEND_URL.replace(/\/$/, '');
   const successUrl = `${apiBase}/api/v1/payment/callback/success`;
   const failUrl    = `${apiBase}/api/v1/payment/callback/fail`;
@@ -145,7 +183,7 @@ export async function initializeEpsPayment(params: EpsPaymentParams) {
     `cancelUrl=${cancelUrl}`,
   );
 
-  return getEPS().initializePayment({ ...params, successUrl, failUrl, cancelUrl });
+  return getEPS().initializePayment({ ...params, customerPhone, successUrl, failUrl, cancelUrl });
 }
 
 // ─── Membership fee lookup ────────────────────────────────────────

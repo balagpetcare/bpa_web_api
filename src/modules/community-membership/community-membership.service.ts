@@ -254,18 +254,14 @@ export async function initiatePurchase(dto: InitiatePurchaseDto, ipAddress?: str
     };
   }
 
-  // Initiate EPS payment
-  const phone = dto.memberMobile.replace(/\D/g, '');
-  const normalizedPhone = phone.startsWith('880') ? phone.slice(3) : phone;
-  const customerPhone = normalizedPhone.startsWith('0') ? normalizedPhone : `0${normalizedPhone}`;
-
+  // Initiate EPS payment — phone normalization handled inside initializeEpsPayment()
   const epsResult = await initializeEpsPayment({
     customerOrderId: purchase.id,
     merchantTransactionId: merchantTxnId,
     totalAmount: amount,
     customerName: dto.memberName,
     customerEmail: dto.memberEmail || 'no-email@bpa.org',
-    customerPhone,
+    customerPhone: dto.memberMobile,
     customerAddress: dto.memberAddress || 'Bangladesh',
     customerCity: 'Dhaka',
     customerState: 'Dhaka Division',
@@ -625,10 +621,6 @@ export async function requestUpgrade(dto: UpgradeRequestDto, ipAddress?: string)
   const purchase = await repo.getPurchaseById(dto.purchaseId);
   if (!purchase) throw AppError.notFound('Purchase');
 
-  const phone = purchase.memberMobile.replace(/\D/g, '');
-  const normalizedPhone = phone.startsWith('880') ? phone.slice(3) : phone;
-  const customerPhone = normalizedPhone.startsWith('0') ? normalizedPhone : `0${normalizedPhone}`;
-
   if (!isEPSConfigured()) {
     // Manual mode — create upgrade as pending_payment
     const payment = await createPayment({
@@ -711,7 +703,7 @@ export async function requestUpgrade(dto: UpgradeRequestDto, ipAddress?: string)
     totalAmount: amount,
     customerName: purchase.memberName,
     customerEmail: purchase.memberEmail || 'no-email@bpa.org',
-    customerPhone,
+    customerPhone: purchase.memberMobile,
     customerAddress: 'Bangladesh',
     customerCity: 'Dhaka',
     customerState: 'Dhaka Division',

@@ -33,9 +33,6 @@ router.post(
 
       const amount = getMembershipFee(dto.membershipType);
       const merchantTxnId = generateMerchantTxnId();
-      const phone = dto.phone?.replace(/\D/g, '') || '01000000000';
-      const normalizedPhone = phone.startsWith('880') ? phone.slice(3) : phone;
-      const customerPhone = normalizedPhone.startsWith('0') ? normalizedPhone : `0${normalizedPhone}`;
 
       // Create pending payment record
       const payment = await createPayment({
@@ -61,7 +58,7 @@ router.post(
         totalAmount: amount,
         customerName:     dto.name,
         customerEmail:    dto.email,
-        customerPhone:    customerPhone,
+        customerPhone:    dto.phone ?? '',
         customerAddress:  'Bangladesh',
         customerCity:     'Dhaka',
         customerState:    'Dhaka Division',
