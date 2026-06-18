@@ -60,6 +60,8 @@ import {
   getMembershipStatusHandler,
   downloadReceiptPdfHandler,
   downloadCardPdfHandler,
+  downloadGuidePdfHandler,
+  downloadWelcomePackPdfHandler,
 } from './modules/community-membership/community-membership.controller';
 import { publicReadLimiter } from './middlewares/rateLimiter';
 
@@ -201,6 +203,8 @@ app.use(`${v1}/public/community-care`, communityMembershipPublicRouter);
 app.get(`${v1}/public/memberships/:reference`, publicReadLimiter, getMembershipStatusHandler);
 app.get(`${v1}/public/memberships/:reference/receipt.pdf`, publicReadLimiter, downloadReceiptPdfHandler);
 app.get(`${v1}/public/memberships/:reference/card.pdf`, publicReadLimiter, downloadCardPdfHandler);
+app.get(`${v1}/public/memberships/:reference/guide.pdf`, publicReadLimiter, downloadGuidePdfHandler);
+app.get(`${v1}/public/memberships/:reference/welcome-pack.pdf`, publicReadLimiter, downloadWelcomePackPdfHandler);
 
 // ─── Donations ──────────────────────────────────────────────────
 app.use(`${v1}/public/donations`, donationsPublicRouter);

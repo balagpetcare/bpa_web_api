@@ -408,14 +408,8 @@ export async function handlePaymentSuccess(paymentId: string) {
       console.error('[Membership] PDF generation failed:', err);
     }
 
-    // SMS notification (fire and forget)
-    try {
-      const { sendSms } = await import('../../services/sms.service');
-      void sendSms({
-        to: purchase.memberMobile,
-        message: `BPA: Your Community Care ${tier.nameEn} Membership is active! Card: ${cardNumber}. Verify at: ${config.FRONTEND_URL}/verify/membership-card/${qrToken}`,
-      });
-    } catch { /* noop */ }
+    // SMS notification (idempotent, fire and forget)
+    void sendMembershipActivationSms(purchase.id);
 
     return { purchaseId: purchase.id, cardNumber, qrToken };
   }
@@ -884,14 +878,8 @@ export async function adminSettlePurchase(purchaseId: string, adminNote?: string
     console.error('[Membership] PDF generation failed (non-blocking):', err);
   }
 
-  // SMS (best-effort)
-  try {
-    const { sendSms } = await import('../../services/sms.service');
-    void sendSms({
-      to: purchase.memberMobile,
-      message: `BPA: Your Community Care ${tier.nameEn} Membership is active! Card: ${cardNumber}. Verify at: ${config.FRONTEND_URL}/verify/membership-card/${qrToken}`,
-    });
-  } catch { /* noop */ }
+  // SMS notification (idempotent, fire and forget)
+  void sendMembershipActivationSms(purchase.id);
 
   // Audit log
   try {
@@ -923,10 +911,23 @@ export async function adminRejectPurchase(purchaseId: string, reason?: string) {
   if (!purchase) throw AppError.notFound('Purchase');
   if (purchase.status !== 'pending_payment') throw AppError.badRequest('Purchase is not pending');
 
-  return repo.updatePurchase(purchaseId, {
+  const result = await repo.updatePurchase(purchaseId, {
     status: 'cancelled',
     notes: reason ? `${purchase.notes ?? ''}\nRejected: ${reason}` : purchase.notes,
   });
+
+  // SMS notification for rejection (best-effort)
+  try {
+    const { sendSms } = await import('../../services/sms.service');
+    const settings = await prisma.siteSettings.findUnique({ where: { id: 'default' } });
+    const supportPhone = settings?.supportPhone || '01575008300';
+    void sendSms({
+      to: purchase.memberMobile,
+      message: `BPA: আপনার পেমেন্ট যাচাই সম্পন্ন হয়নি। রেফারেন্স: ${purchase.id}. অনুগ্রহ করে সাপোর্টে যোগাযোগ করুন: ${supportPhone}`,
+    });
+  } catch { /* noop */ }
+
+  return result;
 }
 
 // ─── Admin: Settle Upgrade ──────────────────────────────────────
@@ -1057,6 +1058,37 @@ export async function getMembershipStatus(reference: string) {
   const regularPrice = Number(purchase.tier.regularPriceBdt);
   const launchPrice = purchase.tier.launchPriceBdt ? Number(purchase.tier.launchPriceBdt) : null;
 
+  // SMS status check
+  const smsLog = await prisma.smsLog.findFirst({
+    where: {
+      to: purchase.memberMobile,
+      OR: [
+        { body: { contains: purchase.id } },
+        ...(purchase.card ? [{ body: { contains: purchase.card.cardNumber } }] : []),
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  let smsStatus = 'not_sent';
+  if (smsLog) {
+    if (smsLog.status === 'sent' || smsLog.status === 'delivered') {
+      smsStatus = 'sent';
+    } else if (smsLog.status === 'queued') {
+      smsStatus = 'queued';
+    } else if (smsLog.status === 'failed' || smsLog.status === 'undelivered') {
+      smsStatus = 'failed';
+    }
+  }
+  const smsSentAt = smsLog?.sentAt ? smsLog.sentAt.toISOString() : null;
+
+  // Site settings for support contact
+  const settings = await prisma.siteSettings.findUnique({
+    where: { id: 'default' },
+  });
+  const supportPhone = settings?.supportPhone || '01575008300';
+  const supportEmail = settings?.supportEmail || 'info@bangladeshpetassociation.com';
+
   return {
     reference: purchase.id,
     status: purchase.status,
@@ -1079,5 +1111,51 @@ export async function getMembershipStatus(reference: string) {
     verificationUrl: purchase.card?.qrToken ? `${frontendUrl}/verify/membership-card/${purchase.card.qrToken}` : null,
     receiptPdfUrl: `${baseUrl}/api/v1/public/memberships/${purchase.id}/receipt.pdf`,
     cardPdfUrl: purchase.card ? `${baseUrl}/api/v1/public/memberships/${purchase.id}/card.pdf` : null,
+    guidePdfUrl: purchase.status === 'paid' ? `${baseUrl}/api/v1/public/memberships/${purchase.id}/guide.pdf` : null,
+    welcomePackPdfUrl: purchase.card ? `${baseUrl}/api/v1/public/memberships/${purchase.id}/welcome-pack.pdf` : null,
+    smsStatus,
+    smsSentAt,
+    supportPhone,
+    supportEmail,
   };
+}
+
+export async function sendMembershipActivationSms(purchaseId: string) {
+  try {
+    const purchase = await prisma.communityMembershipPurchase.findUnique({
+      where: { id: purchaseId },
+      include: { card: true, tier: true }
+    });
+    if (!purchase || purchase.status !== 'paid' || !purchase.card) {
+      return;
+    }
+
+    // Check if SMS was already sent for this card to maintain idempotency
+    const existing = await prisma.smsLog.findFirst({
+      where: {
+        to: purchase.memberMobile,
+        body: { contains: purchase.card.cardNumber },
+      }
+    });
+
+    if (existing) {
+      console.log(`[Membership SMS] Activation SMS already sent for purchase ${purchaseId} / card ${purchase.card.cardNumber}. Skipping.`);
+      return;
+    }
+
+    const settings = await prisma.siteSettings.findUnique({ where: { id: 'default' } });
+    const supportPhone = settings?.supportPhone || '01575008300';
+    const frontendUrl = config.FRONTEND_URL.replace(/\/$/, '');
+    const downloadUrl = `${frontendUrl}/community-pet-care/payment/status?ref=${purchase.id}`;
+
+    const message = `BPA: আপনার Community Care Partner Card সক্রিয় হয়েছে। কার্ড নং: ${purchase.card.cardNumber}. ডাউনলোড: ${downloadUrl}. সহায়তা: ${supportPhone}`;
+
+    const { sendSms } = await import('../../services/sms.service');
+    await sendSms({
+      to: purchase.memberMobile,
+      message,
+    });
+  } catch (err) {
+    console.error('[Membership SMS] Error sending activation SMS:', err);
+  }
 }

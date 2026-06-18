@@ -1,4 +1,6 @@
 import { config } from '../config';
+import { prisma } from '../database/prisma';
+import { SmsStatus } from '@prisma/client';
 
 export interface SmsOptions {
   to: string;
@@ -6,14 +8,58 @@ export interface SmsOptions {
 }
 
 export async function sendSms(options: SmsOptions): Promise<void> {
-  if (!config.SMS_API_URL || !config.SMS_API_KEY) {
-    console.warn('[SmsService] SMS not configured — skipping send');
-    return;
+  const provider = 'mock-gateway';
+  console.log(`[SmsService] Sending SMS to ${options.to}: ${options.message}`);
+
+  let status: SmsStatus = SmsStatus.sent;
+  let failureReason: string | null = null;
+  let sentAt: Date | null = new Date();
+
+  if (config.SMS_API_URL && config.SMS_API_KEY) {
+    try {
+      const response = await fetch(config.SMS_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.SMS_API_KEY}`,
+        },
+        body: JSON.stringify({
+          to: options.to,
+          message: options.message,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Gateway returned HTTP ${response.status}`);
+      }
+      status = SmsStatus.sent;
+      sentAt = new Date();
+    } catch (err: any) {
+      console.error('[SmsService] SMS gateway call failed:', err);
+      status = SmsStatus.failed;
+      failureReason = err.message || String(err);
+      sentAt = null;
+    }
+  } else {
+    console.warn('[SmsService] SMS API URL/KEY not configured — simulating successful console send');
+    status = SmsStatus.sent;
+    sentAt = new Date();
   }
 
-  // Placeholder: integrate with SMS gateway HTTP API here.
-  // Replace the fetch call with the provider-specific payload format.
-  console.log(`[SmsService] Sending SMS to ${options.to}: ${options.message}`);
+  try {
+    await prisma.smsLog.create({
+      data: {
+        to: options.to,
+        body: options.message,
+        status,
+        provider,
+        failureReason,
+        sentAt,
+      },
+    });
+  } catch (dbErr) {
+    console.error('[SmsService] Failed to create database SmsLog record:', dbErr);
+  }
 }
 
 export async function sendOtp(phone: string, otp: string): Promise<void> {

@@ -579,3 +579,85 @@ export async function downloadCardPdfHandler(req: Request, res: Response, next: 
     next(err);
   }
 }
+
+export async function downloadGuidePdfHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { reference } = req.params;
+    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+    const purchase = await prisma.communityMembershipPurchase.findFirst({
+      where: {
+        OR: [
+          ...(isUuid(reference) ? [{ id: reference }] : []),
+          { payment: { merchantTxnId: reference } },
+          { payment: { gatewayRef: reference } },
+          { payment: { epsTxnId: reference } },
+        ]
+      },
+      include: {
+        tier: true,
+        payment: true,
+        card: true,
+        preferredZone: true,
+      }
+    });
+
+    if (!purchase) {
+      throw AppError.notFound('Membership purchase');
+    }
+
+    if (purchase.status !== 'paid') {
+      throw AppError.forbidden('Only paid memberships can download the membership guide. Please contact support.', 'MEMBERSHIP_UNPAID');
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Disposition', `inline; filename="BPA-membership-guide-${purchase.id}.pdf"`);
+
+    const { streamMembershipGuidePdf } = await import('../memberships/membership-guide.pdf');
+    await streamMembershipGuidePdf(purchase, res);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function downloadWelcomePackPdfHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { reference } = req.params;
+    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+    const purchase = await prisma.communityMembershipPurchase.findFirst({
+      where: {
+        OR: [
+          ...(isUuid(reference) ? [{ id: reference }] : []),
+          { payment: { merchantTxnId: reference } },
+          { payment: { gatewayRef: reference } },
+          { payment: { epsTxnId: reference } },
+        ]
+      },
+      include: {
+        tier: true,
+        payment: true,
+        card: true,
+        preferredZone: true,
+      }
+    });
+
+    if (!purchase) {
+      throw AppError.notFound('Membership purchase');
+    }
+
+    if (purchase.status !== 'paid' || !purchase.card) {
+      throw AppError.forbidden('Only paid memberships with issued cards can download the welcome pack. Please contact support.', 'MEMBERSHIP_UNPAID');
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Disposition', `inline; filename="BPA-welcome-pack-${purchase.id}.pdf"`);
+
+    const { streamMembershipWelcomePackPdf } = await import('../memberships/membership-welcome-pack.pdf');
+    await streamMembershipWelcomePackPdf(purchase, res);
+  } catch (err) {
+    next(err);
+  }
+}

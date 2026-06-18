@@ -98,32 +98,32 @@ type ThemeConfig = {
 function getThemeByTier(slug: string): ThemeConfig {
   const s = slug.toLowerCase();
   if (s.includes('premium')) {
-    // Elegant Dark/Gold Theme
+    // Deep Green with Gold Accent
     return {
-      primary: '#0f2d59',   // Deep Navy
-      secondary: '#b45309', // Amber/Gold
+      primary: '#064e3b',   // Deep Emerald Green
+      secondary: '#0f5132', // Dark Green
       textColor: '#ffffff',
-      accent: '#f59e0b',    // Amber accent
-      bgLight: '#fef3c7',   // Light amber
+      accent: '#fbbf24',    // Gold accent
+      bgLight: '#f0fdf4',   // Light green tint
     };
   }
   if (s.includes('enterprise') || s.includes('corporate')) {
-    // Dark Slate/Platinum Theme
+    // Dark Navy with Silver/Platinum Accent
     return {
-      primary: '#1e293b',   // Dark Slate
-      secondary: '#475569', // Medium Slate
+      primary: '#0f172a',   // Dark Navy
+      secondary: '#1e293b', // Navy Slate
       textColor: '#ffffff',
-      accent: '#94a3b8',    // Platinum
-      bgLight: '#f1f5f9',   // Light grey
+      accent: '#cbd5e1',    // Silver/Platinum
+      bgLight: '#f8fafc',   // Light slate/navy tint
     };
   }
-  // Primary / Standard: Forest Green Theme
+  // Primary / Standard: Blue/Teal Professional Style
   return {
-    primary: '#16a34a',     // Green
-    secondary: '#15803d',   // Dark Green
+    primary: '#0e7490',     // Deep Teal
+    secondary: '#155e75',   // Dark Teal
     textColor: '#ffffff',
-    accent: '#86efac',      // Light green
-    bgLight: '#f0fdf4',     // Light green tint
+    accent: '#22d3ee',      // Cyan accent
+    bgLight: '#ecfeff',     // Teal tint
   };
 }
 

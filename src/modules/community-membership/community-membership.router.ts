@@ -34,7 +34,8 @@ import {
   listUpgradesHandler, getUpgradeHandler, adminSettleUpgradeHandler,
   listDocumentsHandler, getDocumentHandler, createDocumentHandler, updateDocumentHandler, deleteDocumentHandler,
   downloadPdfByTokenHandler, getPurchaseStatusHandler, submitTransactionHandler,
-  getZoneDemandHandler,
+  getZoneDemandHandler, getMembershipStatusHandler, downloadReceiptPdfHandler,
+  downloadCardPdfHandler, downloadGuidePdfHandler, downloadWelcomePackPdfHandler,
 } from './community-membership.controller';
 import { updateProgramSchema } from './community-membership.types';
 
@@ -116,5 +117,12 @@ publicRouter.post('/upgrade/submit-transaction', publicFormLimiter, validate(sub
 publicRouter.get('/download/:token', downloadPdfByTokenHandler);
 publicRouter.get('/purchase/:id/status', getPurchaseStatusHandler);
 publicRouter.post('/purchase/submit-transaction', publicFormLimiter, validate(submitPurchaseTransactionSchema), submitTransactionHandler);
+
+// Public membership status & PDFs
+publicRouter.get('/memberships/:reference', getMembershipStatusHandler);
+publicRouter.get('/memberships/:reference/receipt.pdf', downloadReceiptPdfHandler);
+publicRouter.get('/memberships/:reference/card.pdf', downloadCardPdfHandler);
+publicRouter.get('/memberships/:reference/guide.pdf', downloadGuidePdfHandler);
+publicRouter.get('/memberships/:reference/welcome-pack.pdf', downloadWelcomePackPdfHandler);
 
 export { adminRouter as communityMembershipAdminRouter, publicRouter as communityMembershipPublicRouter };
