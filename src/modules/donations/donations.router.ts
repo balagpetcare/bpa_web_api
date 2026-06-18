@@ -3,6 +3,7 @@ import * as ctrl from './donations.controller';
 import { authenticateOptional } from '../../middlewares/authenticateOptional';
 import { authenticate } from '../../middlewares/authenticate';
 import { requireRole } from '../../middlewares/authorize';
+import { isValidUuid } from '../../utils/uuid';
 
 const publicRouter = Router();
 const adminRouter = Router();
@@ -23,16 +24,17 @@ publicRouter.get('/qr/:slug/redirect', ctrl.qrRedirectHandler);
 publicRouter.get('/impact-stories/:slug', ctrl.getImpactStoryDetailHandler);
 
 // ─── Admin Routes ────────────────────────────────────────────────
+// IMPORTANT: Static admin routes must be registered BEFORE dynamic /:id routes
+// to prevent Express from matching literal path segments like "campaigns" as an id.
 
 adminRouter.use(authenticate, requireRole('ADMIN'));
 
+// Dashboard & Export
 adminRouter.get('/dashboard-stats', ctrl.getDashboardStatsHandler);
 adminRouter.get('/export/csv', ctrl.exportDonationsCsvHandler);
 
-// Donations
+// List (root)
 adminRouter.get('/', ctrl.listDonationsHandler);
-adminRouter.get('/:id', ctrl.getDonationDetailHandler);
-adminRouter.patch('/:id/status', ctrl.updateDonationStatusHandler);
 
 // Purposes
 adminRouter.get('/purposes', ctrl.listPurposesHandler);
@@ -68,5 +70,24 @@ adminRouter.delete('/transparency-reports/:id', ctrl.deleteTransparencyReportHan
 // Settings
 adminRouter.get('/page-settings', ctrl.getSettingsHandler);
 adminRouter.patch('/page-settings', ctrl.updateSettingsHandler);
+
+// ─── Dynamic Routes (must be last — after all static paths) ────
+
+// UUID validation middleware for donation id routes
+function validateDonationId(req: any, res: any, next: any) {
+  if (!isValidUuid(req.params.id)) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_DONATION_ID',
+        message: `Invalid donation id format: "${req.params.id}" is not a valid UUID`,
+      },
+    });
+  }
+  next();
+}
+
+adminRouter.get('/:id', validateDonationId, ctrl.getDonationDetailHandler);
+adminRouter.patch('/:id/status', validateDonationId, ctrl.updateDonationStatusHandler);
 
 export { publicRouter as donationsPublicRouter, adminRouter as donationsAdminRouter };
