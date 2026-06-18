@@ -4,8 +4,8 @@ import { config } from '../config';
 import { AuthPayload } from '../types';
 
 export function signAccessToken(payload: AuthPayload): string {
-  return jwt.sign(payload, config.JWT_ACCESS_SECRET, {
-    expiresIn: config.JWT_ACCESS_EXPIRES_IN,
+  return jwt.sign(payload, config.AUTH_JWT_SECRET, {
+    expiresIn: config.AUTH_JWT_EXPIRES_IN,
     issuer: 'bpa-api',
     audience: 'bpa-client',
   } as jwt.SignOptions);
@@ -14,7 +14,7 @@ export function signAccessToken(payload: AuthPayload): string {
 export function signRefreshToken(userId: string): string {
   // jti (JWT ID) ensures every token is unique even when called in rapid succession,
   // preventing unique-constraint failures on the refresh_tokens table.
-  return jwt.sign({ sub: userId, jti: randomUUID() }, config.JWT_REFRESH_SECRET, {
+  return jwt.sign({ sub: userId, jti: randomUUID() }, config.AUTH_JWT_SECRET, {
     expiresIn: config.JWT_REFRESH_EXPIRES_IN,
     issuer: 'bpa-api',
     audience: 'bpa-client',
@@ -22,14 +22,14 @@ export function signRefreshToken(userId: string): string {
 }
 
 export function verifyAccessToken(token: string): AuthPayload {
-  return jwt.verify(token, config.JWT_ACCESS_SECRET, {
+  return jwt.verify(token, config.AUTH_JWT_SECRET, {
     issuer: 'bpa-api',
     audience: 'bpa-client',
   }) as AuthPayload;
 }
 
 export function verifyRefreshToken(token: string): { sub: string } {
-  return jwt.verify(token, config.JWT_REFRESH_SECRET, {
+  return jwt.verify(token, config.AUTH_JWT_SECRET, {
     issuer: 'bpa-api',
     audience: 'bpa-client',
   }) as { sub: string };
@@ -41,7 +41,7 @@ export function getRefreshTokenExpiryDate(): Date {
 }
 
 export function getAccessTokenExpiryDate(): Date {
-  const ms = parseExpiry(config.JWT_ACCESS_EXPIRES_IN);
+  const ms = parseExpiry(config.AUTH_JWT_EXPIRES_IN);
   return new Date(Date.now() + ms);
 }
 

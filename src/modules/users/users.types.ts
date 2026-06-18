@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const createUserSchema = z.object({
   name: z.string().min(1).max(120),
-  email: z.string().email(),
+  email: z.string().email().optional(),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   phone: z.string().max(20).optional(),
   roleIds: z.array(z.string().uuid()).optional(),
@@ -10,7 +10,7 @@ export const createUserSchema = z.object({
 
 export const updateUserSchema = z.object({
   name: z.string().min(1).max(120).optional(),
-  email: z.string().email().optional(),
+  email: z.string().email().nullable().optional(),
   password: z.string().min(8).optional(),
   phone: z.string().max(20).nullable().optional(),
   isActive: z.boolean().optional(),
@@ -31,7 +31,7 @@ export type UserListQuery = z.infer<typeof userListQuerySchema>;
 export interface UserResponse {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   isActive: boolean;
   roles: string[];

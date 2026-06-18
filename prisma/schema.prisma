@@ -92,6 +92,25 @@ enum AuditAction {
   upload
 }
 
+enum AuthProvider {
+  GOOGLE
+  FACEBOOK
+  INSTAGRAM
+  TWITTER
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+}
+
+enum OtpPurpose {
+  LOGIN
+  REGISTER
+  RESET_PASSWORD
+}
+
 enum HomepageStatus {
   draft
   published
@@ -224,19 +243,27 @@ enum PetSmartSyncStatus {
 // ─── Identity & Auth ────────────────────────────────────────────
 
 model User {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                String    @db.VarChar(120)
-  email               String    @unique @db.VarChar(255)
-  passwordHash        String    @map("password_hash") @db.Text
-  phone               String?   @db.VarChar(20)
-  isActive            Boolean   @default(true) @map("is_active")
-  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
-  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
-  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz
+  id                  String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String     @db.VarChar(120)
+  email               String?    @unique @db.VarChar(255)
+  passwordHash        String?    @map("password_hash") @db.Text
+  phone               String?    @unique @db.VarChar(20)
+  avatarUrl           String?    @map("avatar_url") @db.Text
+  role                String     @default("USER") @db.VarChar(20)
+  status              UserStatus @default(ACTIVE)
+  emailVerifiedAt     DateTime?  @map("email_verified_at") @db.Timestamptz
+  phoneVerifiedAt     DateTime?  @map("phone_verified_at") @db.Timestamptz
+  isActive            Boolean    @default(true) @map("is_active")
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?  @map("locked_until") @db.Timestamptz
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt           DateTime?  @map("deleted_at") @db.Timestamptz
 
   userRoles              UserRole[]
+  authAccounts           AuthAccount[]
+  passwordResetTokens    PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
   news                   News[]
   mediaFiles             MediaFile[]
   volunteersReviewed     Volunteer[]             @relation("ReviewedBy")
@@ -253,6 +280,7 @@ model User {
   certificatesIssued     Certificate[]           @relation("CertificateIssuedBy")
   homepageUpdates        Homepage[]              @relation("HomepageUpdatedBy")
   censusSubmissions      PetCensusSubmission[]
+  donations              Donation[]
 
   @@map("users")
 }
@@ -301,6 +329,64 @@ model UserRole {
 
   @@id([userId, roleId])
   @@map("user_roles")
+}
+
+model AuthAccount {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String       @map("user_id") @db.Uuid
+  provider          AuthProvider
+  providerAccountId String       @map("provider_account_id") @db.VarChar(255)
+  providerEmail     String?      @map("provider_email") @db.VarChar(255)
+  accessToken       String?      @map("access_token") @db.Text
+  refreshToken      String?      @map("refresh_token") @db.Text
+  expiresAt         DateTime?    @map("expires_at") @db.Timestamptz
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("auth_accounts")
+}
+
+model OtpCode {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone      String     @db.VarChar(20)
+  otpHash    String     @map("otp_hash") @db.Text
+  purpose    OtpPurpose @default(LOGIN)
+  expiresAt  DateTime   @map("expires_at") @db.Timestamptz
+  consumedAt DateTime?  @map("consumed_at") @db.Timestamptz
+  attempts   Int        @default(0)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([phone, purpose])
+  @@map("otp_codes")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @map("token_hash") @db.Text
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @map("token_hash") @db.Text
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
 }
 
 model RefreshToken {
@@ -522,7 +608,8 @@ model Payment {
   entityId              String?                @map("entity_id") @db.Uuid
 
   communityMembershipPurchase CommunityMembershipPurchase? @relation("PurchasePayment")
-  communityMembershipUpgrades  CommunityMembershipUpgrade[] @relation("UpgradePayment")
+  communityMembershipUpgrades CommunityMembershipUpgrade[] @relation("UpgradePayment")
+  donations                   Donation[]
 
   @@index([entityType, entityId])
   @@map("payments")
@@ -561,23 +648,23 @@ model MediaFile {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  uploadedBy           User?                 @relation(fields: [uploadedById], references: [id])
-  newsCovers           News[]                @relation("NewsCover")
-  eventCovers          Event[]               @relation("EventCover")
-  committeePhotos      CommitteeMember[]     @relation("CommitteePhoto")
-  seoImages            SeoMetadata[]
-  petPhotos            Pet[]                 @relation("PetPhoto")
-  campaignCovers       Campaign[]            @relation("CampaignCover")
-  campaignMediaItems   CampaignMedia[]
-  homepageSectionItems HomepageSectionItem[] @relation("HomepageSectionItemMedia")
-  heroDesktopImages    HeroSlide[]           @relation("HeroDesktopImage")
-  heroMobileImages     HeroSlide[]           @relation("HeroMobileImage")
-    heroVideos           HeroSlide[]           @relation("HeroVideo")
-    partnerLogos              Partner[]             @relation("PartnerLogo")
-    footerLogos               FooterConfig[]        @relation("FooterLogo")
-    communityZoneCovers       CommunityZone[]       @relation("CommunityZoneCover")
-    transparencyReportCovers  TransparencyReport[]  @relation("TransparencyReportCover")
-    petCensusPhotos           PetCensusSubmission[]
+  uploadedBy               User?                 @relation(fields: [uploadedById], references: [id])
+  newsCovers               News[]                @relation("NewsCover")
+  eventCovers              Event[]               @relation("EventCover")
+  committeePhotos          CommitteeMember[]     @relation("CommitteePhoto")
+  seoImages                SeoMetadata[]
+  petPhotos                Pet[]                 @relation("PetPhoto")
+  campaignCovers           Campaign[]            @relation("CampaignCover")
+  campaignMediaItems       CampaignMedia[]
+  homepageSectionItems     HomepageSectionItem[] @relation("HomepageSectionItemMedia")
+  heroDesktopImages        HeroSlide[]           @relation("HeroDesktopImage")
+  heroMobileImages         HeroSlide[]           @relation("HeroMobileImage")
+  heroVideos               HeroSlide[]           @relation("HeroVideo")
+  partnerLogos             Partner[]             @relation("PartnerLogo")
+  footerLogos              FooterConfig[]        @relation("FooterLogo")
+  communityZoneCovers      CommunityZone[]       @relation("CommunityZoneCover")
+  transparencyReportCovers TransparencyReport[]  @relation("TransparencyReportCover")
+  petCensusPhotos          PetCensusSubmission[]
 
   @@index([mimeType])
   @@map("media_files")
@@ -1229,20 +1316,20 @@ model CampaignVolunteer {
 // ─── Campaign Registrations ────────────────────────────────────────
 
 model CampaignRegistration {
-  id               String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  bookingNumber    String                     @unique @map("booking_number") @db.VarChar(30)
-  campaignId       String                     @map("campaign_id") @db.Uuid
-  sessionId        String                     @map("session_id") @db.Uuid
-  ownerId          String                     @map("owner_id") @db.Uuid
-  status           CampaignRegistrationStatus @default(pending_payment)
-  totalAmountBdt   Decimal                    @map("total_amount_bdt") @db.Decimal(10, 2)
-  paymentId        String?                    @unique @map("payment_id") @db.Uuid
-  isGuest          Boolean                    @default(false) @map("is_guest")
-  notes            String?                    @db.Text
-  staffQrToken     String?                    @unique @map("staff_qr_token") @db.VarChar(64)
-  staffQrIssuedAt  DateTime?                  @map("staff_qr_issued_at") @db.Timestamptz
-  createdAt        DateTime                   @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime                   @updatedAt @map("updated_at") @db.Timestamptz
+  id              String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingNumber   String                     @unique @map("booking_number") @db.VarChar(30)
+  campaignId      String                     @map("campaign_id") @db.Uuid
+  sessionId       String                     @map("session_id") @db.Uuid
+  ownerId         String                     @map("owner_id") @db.Uuid
+  status          CampaignRegistrationStatus @default(pending_payment)
+  totalAmountBdt  Decimal                    @map("total_amount_bdt") @db.Decimal(10, 2)
+  paymentId       String?                    @unique @map("payment_id") @db.Uuid
+  isGuest         Boolean                    @default(false) @map("is_guest")
+  notes           String?                    @db.Text
+  staffQrToken    String?                    @unique @map("staff_qr_token") @db.VarChar(64)
+  staffQrIssuedAt DateTime?                  @map("staff_qr_issued_at") @db.Timestamptz
+  createdAt       DateTime                   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime                   @updatedAt @map("updated_at") @db.Timestamptz
 
   campaign    Campaign        @relation(fields: [campaignId], references: [id])
   session     CampaignSession @relation(fields: [sessionId], references: [id])
@@ -1440,11 +1527,11 @@ model CommunityZone {
   createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz
 
-  coverImage           MediaFile?                    @relation("CommunityZoneCover", fields: [coverImageId], references: [id], onDelete: SetNull)
-  contributions        CareContribution[]
-  cards                CarePartnerCard[]
-  censusSubmissions    PetCensusSubmission[]
-  membershipPurchases  CommunityMembershipPurchase[] @relation("MembershipPreferredZone")
+  coverImage          MediaFile?                    @relation("CommunityZoneCover", fields: [coverImageId], references: [id], onDelete: SetNull)
+  contributions       CareContribution[]
+  cards               CarePartnerCard[]
+  censusSubmissions   PetCensusSubmission[]
+  membershipPurchases CommunityMembershipPurchase[] @relation("MembershipPreferredZone")
 
   @@index([status, isActive, sortOrder])
   @@map("community_zones")
@@ -1542,19 +1629,19 @@ model CardVerificationLog {
 }
 
 model PetCensusCampaign {
-  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title                 String         @db.VarChar(255)
-  description           String?        @db.Text
-  status                CampaignStatus @default(draft)
-  registrationStartAt   DateTime       @map("registration_start_at") @db.Timestamptz
-  registrationEndAt     DateTime       @map("registration_end_at") @db.Timestamptz
-  countdownTargetAt     DateTime?      @map("countdown_target_at") @db.Timestamptz
-  targetSubmissions     Int            @default(10000) @map("target_submissions")
-  currentSubmissions    Int            @default(0) @map("current_submissions")
-  settings              Json?
-  isActive              Boolean        @default(true) @map("is_active")
-  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt             DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title               String         @db.VarChar(255)
+  description         String?        @db.Text
+  status              CampaignStatus @default(draft)
+  registrationStartAt DateTime       @map("registration_start_at") @db.Timestamptz
+  registrationEndAt   DateTime       @map("registration_end_at") @db.Timestamptz
+  countdownTargetAt   DateTime?      @map("countdown_target_at") @db.Timestamptz
+  targetSubmissions   Int            @default(10000) @map("target_submissions")
+  currentSubmissions  Int            @default(0) @map("current_submissions")
+  settings            Json?
+  isActive            Boolean        @default(true) @map("is_active")
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("pet_census_campaigns")
 }
@@ -1603,9 +1690,9 @@ model PetCensusSubmission {
   submittedAt             DateTime        @default(now()) @map("submitted_at") @db.Timestamptz
   updatedAt               DateTime        @updatedAt @map("updated_at") @db.Timestamptz
 
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-  photoMedia MediaFile? @relation(fields: [photoMediaId], references: [id], onDelete: SetNull)
-  zone CommunityZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  user       User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  photoMedia MediaFile?     @relation(fields: [photoMediaId], references: [id], onDelete: SetNull)
+  zone       CommunityZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([ownerMobile])
@@ -1854,23 +1941,23 @@ enum CommunityServiceCategory {
 // ─── Membership Program Settings (Singleton) ─────────────────────
 
 model CommunityMembershipProgram {
-  id                String    @id @default("default")
-  nameEn            String    @default("Community Care Partnership Program") @map("name_en") @db.VarChar(200)
-  nameBn            String    @default("কমিউনিটি কেয়ার পার্টনারশিপ প্রোগ্রাম") @map("name_bn") @db.VarChar(200)
-  slug              String    @default("community-care-membership") @unique @db.VarChar(140)
-  descriptionEn     String?   @map("description_en") @db.Text
-  descriptionBn     String?   @map("description_bn") @db.Text
+  id                String          @id @default("default")
+  nameEn            String          @default("Community Care Partnership Program") @map("name_en") @db.VarChar(200)
+  nameBn            String          @default("কমিউনিটি কেয়ার পার্টনারশিপ প্রোগ্রাম") @map("name_bn") @db.VarChar(200)
+  slug              String          @unique @default("community-care-membership") @db.VarChar(140)
+  descriptionEn     String?         @map("description_en") @db.Text
+  descriptionBn     String?         @map("description_bn") @db.Text
   // Offer countdown
-  offerStartAt      DateTime? @map("offer_start_at") @db.Timestamptz
-  offerEndAt        DateTime? @map("offer_end_at") @db.Timestamptz
+  offerStartAt      DateTime?       @map("offer_start_at") @db.Timestamptz
+  offerEndAt        DateTime?       @map("offer_end_at") @db.Timestamptz
   priceAfterOffer   PriceAfterOffer @default(USE_REGULAR_PRICE) @map("price_after_offer")
-  offerBannerEn     String?   @map("offer_banner_en") @db.VarChar(300)
-  offerBannerBn     String?   @map("offer_banner_bn") @db.VarChar(300)
-  legalDisclaimer   String?   @map("legal_disclaimer") @db.Text
-  cardValidityLabel String?   @map("card_validity_label") @db.VarChar(120)
-  isActive          Boolean   @default(true) @map("is_active")
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  offerBannerEn     String?         @map("offer_banner_en") @db.VarChar(300)
+  offerBannerBn     String?         @map("offer_banner_bn") @db.VarChar(300)
+  legalDisclaimer   String?         @map("legal_disclaimer") @db.Text
+  cardValidityLabel String?         @map("card_validity_label") @db.VarChar(120)
+  isActive          Boolean         @default(true) @map("is_active")
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("community_membership_programs")
 }
@@ -1902,8 +1989,8 @@ model CommunityMembershipTier {
   serviceDiscounts CommunityTierServiceDiscount[]
   benefits         CommunityTierBenefitMapping[]
   purchases        CommunityMembershipPurchase[]
-  upgradesFrom     CommunityMembershipUpgrade[] @relation("UpgradeFromTier")
-  upgradesTo       CommunityMembershipUpgrade[] @relation("UpgradeToTier")
+  upgradesFrom     CommunityMembershipUpgrade[]   @relation("UpgradeFromTier")
+  upgradesTo       CommunityMembershipUpgrade[]   @relation("UpgradeToTier")
 
   @@index([isActive, sortOrder])
   @@map("community_membership_tiers")
@@ -1912,17 +1999,17 @@ model CommunityMembershipTier {
 // ─── Services ────────────────────────────────────────────────────
 
 model CommunityMembershipService {
-  id          String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nameEn      String                  @map("name_en") @db.VarChar(200)
-  nameBn      String                  @map("name_bn") @db.VarChar(200)
-  category    CommunityServiceCategory
-  basePriceBdt Decimal                @default(0) @map("base_price_bdt") @db.Decimal(10, 2)
-  descriptionEn String?               @map("description_en") @db.Text
-  descriptionBn String?               @map("description_bn") @db.Text
-  isActive    Boolean                 @default(true) @map("is_active")
-  sortOrder   Int                     @default(0) @map("sort_order")
-  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+  id            String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nameEn        String                   @map("name_en") @db.VarChar(200)
+  nameBn        String                   @map("name_bn") @db.VarChar(200)
+  category      CommunityServiceCategory
+  basePriceBdt  Decimal                  @default(0) @map("base_price_bdt") @db.Decimal(10, 2)
+  descriptionEn String?                  @map("description_en") @db.Text
+  descriptionBn String?                  @map("description_bn") @db.Text
+  isActive      Boolean                  @default(true) @map("is_active")
+  sortOrder     Int                      @default(0) @map("sort_order")
+  createdAt     DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime                 @updatedAt @map("updated_at") @db.Timestamptz
 
   discounts CommunityTierServiceDiscount[]
 
@@ -1934,16 +2021,16 @@ model CommunityMembershipService {
 // ─── Tier-Service Discounts ─────────────────────────────────────
 
 model CommunityTierServiceDiscount {
-  id            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tierId        String                  @map("tier_id") @db.Uuid
-  serviceId     String                  @map("service_id") @db.Uuid
-  discountType  MembershipDiscountType  @map("discount_type")
-  discountValue Decimal                 @map("discount_value") @db.Decimal(5, 2)
-  minDiscount   Decimal?                @map("min_discount") @db.Decimal(10, 2)
-  maxDiscount   Decimal?                @map("max_discount") @db.Decimal(10, 2)
-  isActive      Boolean                 @default(true) @map("is_active")
-  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tierId        String                 @map("tier_id") @db.Uuid
+  serviceId     String                 @map("service_id") @db.Uuid
+  discountType  MembershipDiscountType @map("discount_type")
+  discountValue Decimal                @map("discount_value") @db.Decimal(5, 2)
+  minDiscount   Decimal?               @map("min_discount") @db.Decimal(10, 2)
+  maxDiscount   Decimal?               @map("max_discount") @db.Decimal(10, 2)
+  isActive      Boolean                @default(true) @map("is_active")
+  createdAt     DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime               @updatedAt @map("updated_at") @db.Timestamptz
 
   tier    CommunityMembershipTier    @relation(fields: [tierId], references: [id], onDelete: Cascade)
   service CommunityMembershipService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
@@ -1986,30 +2073,30 @@ model CommunityTierBenefitMapping {
 // ─── Membership Purchase ─────────────────────────────────────────
 
 model CommunityMembershipPurchase {
-  id                String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tierId            String                    @map("tier_id") @db.Uuid
-  paymentId         String?                   @unique @map("payment_id") @db.Uuid
-  memberName        String                    @map("member_name") @db.VarChar(120)
-  memberMobile      String                    @map("member_mobile") @db.VarChar(20)
-  memberEmail       String?                   @map("member_email") @db.VarChar(255)
-  memberAddress     String?                   @map("member_address") @db.Text
-  amountBdt         Decimal                   @map("amount_bdt") @db.Decimal(10, 2)
-  currency          String                    @default("BDT") @db.VarChar(3)
-  status            MembershipPurchaseStatus  @default(pending_payment)
-  petLimit          Int                       @default(3) @map("pet_limit")
-  startsAt          DateTime?                 @map("starts_at") @db.Date
-  expiresAt         DateTime?                 @map("expires_at") @db.Date
-  purchasedAt       DateTime?                 @map("purchased_at") @db.Timestamptz
-  notes             String?                   @db.Text
-  preferredZoneId   String?                   @map("preferred_zone_id") @db.Uuid
-  createdAt         DateTime                  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt         DateTime                  @updatedAt @map("updated_at") @db.Timestamptz
+  id              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tierId          String                   @map("tier_id") @db.Uuid
+  paymentId       String?                  @unique @map("payment_id") @db.Uuid
+  memberName      String                   @map("member_name") @db.VarChar(120)
+  memberMobile    String                   @map("member_mobile") @db.VarChar(20)
+  memberEmail     String?                  @map("member_email") @db.VarChar(255)
+  memberAddress   String?                  @map("member_address") @db.Text
+  amountBdt       Decimal                  @map("amount_bdt") @db.Decimal(10, 2)
+  currency        String                   @default("BDT") @db.VarChar(3)
+  status          MembershipPurchaseStatus @default(pending_payment)
+  petLimit        Int                      @default(3) @map("pet_limit")
+  startsAt        DateTime?                @map("starts_at") @db.Date
+  expiresAt       DateTime?                @map("expires_at") @db.Date
+  purchasedAt     DateTime?                @map("purchased_at") @db.Timestamptz
+  notes           String?                  @db.Text
+  preferredZoneId String?                  @map("preferred_zone_id") @db.Uuid
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz
 
-  tier          CommunityMembershipTier @relation(fields: [tierId], references: [id])
-  payment       Payment?                @relation("PurchasePayment", fields: [paymentId], references: [id], onDelete: SetNull)
+  tier          CommunityMembershipTier      @relation(fields: [tierId], references: [id])
+  payment       Payment?                     @relation("PurchasePayment", fields: [paymentId], references: [id], onDelete: SetNull)
   card          CommunityMembershipCard?
   upgrades      CommunityMembershipUpgrade[]
-  preferredZone CommunityZone?          @relation("MembershipPreferredZone", fields: [preferredZoneId], references: [id], onDelete: SetNull)
+  preferredZone CommunityZone?               @relation("MembershipPreferredZone", fields: [preferredZoneId], references: [id], onDelete: SetNull)
 
   @@index([tierId])
   @@index([memberMobile])
@@ -2022,21 +2109,21 @@ model CommunityMembershipPurchase {
 // ─── Membership Card (Digital Card) ──────────────────────────────
 
 model CommunityMembershipCard {
-  id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  purchaseId         String                @unique @map("purchase_id") @db.Uuid
-  cardNumber         String                @unique @map("card_number") @db.VarChar(30)
-  qrToken            String                @unique @map("qr_token") @db.VarChar(64)
-  status             MembershipCardStatus  @default(active)
-  issuedAt           DateTime?             @map("issued_at") @db.Timestamptz
-  expiresAt          DateTime?             @map("expires_at") @db.Date
-  suspendedAt        DateTime?             @map("suspended_at") @db.Timestamptz
-  suspensionReason   String?               @map("suspension_reason") @db.Text
-  pdfDocumentKey     String?               @map("pdf_document_key") @db.VarChar(500)
-  downloadToken      String?               @map("download_token") @db.Uuid
-  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt          DateTime              @updatedAt @map("updated_at") @db.Timestamptz
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchaseId       String               @unique @map("purchase_id") @db.Uuid
+  cardNumber       String               @unique @map("card_number") @db.VarChar(30)
+  qrToken          String               @unique @map("qr_token") @db.VarChar(64)
+  status           MembershipCardStatus @default(active)
+  issuedAt         DateTime?            @map("issued_at") @db.Timestamptz
+  expiresAt        DateTime?            @map("expires_at") @db.Date
+  suspendedAt      DateTime?            @map("suspended_at") @db.Timestamptz
+  suspensionReason String?              @map("suspension_reason") @db.Text
+  pdfDocumentKey   String?              @map("pdf_document_key") @db.VarChar(500)
+  downloadToken    String?              @map("download_token") @db.Uuid
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz
 
-  purchase CommunityMembershipPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  purchase         CommunityMembershipPurchase              @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   verificationLogs CommunityMembershipCardVerificationLog[]
 
   @@index([status])
@@ -2072,7 +2159,7 @@ model CommunityMembershipUpgrade {
   toTierId           String                  @map("to_tier_id") @db.Uuid
   paymentId          String?                 @unique @map("payment_id") @db.Uuid
   upgradeAmountBdt   Decimal                 @map("upgrade_amount_bdt") @db.Decimal(10, 2)
-  originalPaidAmount Decimal                @map("original_paid_amount") @db.Decimal(10, 2)
+  originalPaidAmount Decimal                 @map("original_paid_amount") @db.Decimal(10, 2)
   status             MembershipUpgradeStatus @default(pending_payment)
   completedAt        DateTime?               @map("completed_at") @db.Timestamptz
   notes              String?                 @db.Text
@@ -2093,16 +2180,16 @@ model CommunityMembershipUpgrade {
 // ─── PDF Document Templates ─────────────────────────────────────
 
 model CommunityMembershipDocument {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  documentType  String   @map("document_type") @db.VarChar(60)
-  titleEn       String   @map("title_en") @db.VarChar(200)
-  titleBn       String   @map("title_bn") @db.VarChar(200)
-  contentEn     String?  @map("content_en") @db.Text
-  contentBn     String?  @map("content_bn") @db.Text
-  version       Int      @default(1)
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentType String   @map("document_type") @db.VarChar(60)
+  titleEn      String   @map("title_en") @db.VarChar(200)
+  titleBn      String   @map("title_bn") @db.VarChar(200)
+  contentEn    String?  @map("content_en") @db.Text
+  contentBn    String?  @map("content_bn") @db.Text
+  version      Int      @default(1)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@unique([documentType, version])
   @@index([documentType, isActive])
@@ -2152,4 +2239,232 @@ model SiteSettings {
   updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("site_settings")
+}
+
+// ─── Public Donation System ────────────────────────────────────
+
+enum DonationCampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum DonorType {
+  INDIVIDUAL
+  ORGANIZATION
+  ANONYMOUS
+}
+
+enum DonationImpactStoryType {
+  RESCUE
+  VACCINATION
+  FOOD
+  TREATMENT
+  ADOPTION
+  AWARENESS
+}
+
+model DonationPurpose {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  titleEn            String   @map("title_en") @db.VarChar(120)
+  titleBn            String?  @map("title_bn") @db.VarChar(120)
+  slug               String   @unique @db.VarChar(140)
+  shortDescriptionEn String?  @map("short_description_en") @db.Text
+  shortDescriptionBn String?  @map("short_description_bn") @db.Text
+  icon               String?  @db.VarChar(100)
+  imageUrl           String?  @map("image_url") @db.Text
+  suggestedAmounts   Json?    @map("suggested_amounts")
+  impactTextEn       String?  @map("impact_text_en") @db.Text
+  impactTextBn       String?  @map("impact_text_bn") @db.Text
+  sortOrder          Int      @default(0) @map("sort_order")
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaigns      DonationCampaign[]
+  donations      Donation[]
+  impactStories  DonationImpactStory[]
+  qrCodes        DonationQrCode[]
+
+  @@index([isActive, sortOrder])
+  @@map("donation_purposes")
+}
+
+model DonationCampaign {
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  titleEn           String                 @map("title_en") @db.VarChar(255)
+  titleBn           String?                @map("title_bn") @db.VarChar(255)
+  slug              String                 @unique @db.VarChar(280)
+  descriptionEn     String?                @map("description_en") @db.Text
+  descriptionBn     String?                @map("description_bn") @db.Text
+  goalAmount        Decimal                @default(0) @map("goal_amount") @db.Decimal(14, 2)
+  raisedAmount      Decimal                @default(0) @map("raised_amount") @db.Decimal(14, 2)
+  startDate         DateTime?              @map("start_date") @db.Timestamptz
+  endDate           DateTime?              @map("end_date") @db.Timestamptz
+  featuredImageUrl  String?                @map("featured_image_url") @db.Text
+  videoUrl          String?                @map("video_url") @db.Text
+  status            DonationCampaignStatus @default(DRAFT)
+  showOnDonatePage  Boolean                @default(true) @map("show_on_donate_page")
+  allowCustomAmount Boolean                @default(true) @map("allow_custom_amount")
+  defaultAmount     Decimal?               @map("default_amount") @db.Decimal(10, 2)
+  suggestedAmounts  Json?                  @map("suggested_amounts")
+  purposeId         String?                @map("purpose_id") @db.Uuid
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime               @updatedAt @map("updated_at") @db.Timestamptz
+
+  purpose       DonationPurpose?      @relation(fields: [purposeId], references: [id], onDelete: SetNull)
+  donations     Donation[]
+  impactStories DonationImpactStory[]
+  qrCodes       DonationQrCode[]
+
+  @@index([status, showOnDonatePage])
+  @@map("donation_campaigns")
+}
+
+model Donation {
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceNo           String        @unique @map("reference_no") @db.VarChar(30)
+  userId                String?       @map("user_id") @db.Uuid
+  donorName             String        @map("donor_name") @db.VarChar(120)
+  donorEmail            String?       @map("donor_email") @db.VarChar(255)
+  donorPhone            String?       @map("donor_phone") @db.VarChar(20)
+  donorCountry          String?       @map("donor_country") @db.VarChar(120)
+  donorType             DonorType     @default(INDIVIDUAL) @map("donor_type")
+  organizationName      String?       @map("organization_name") @db.VarChar(200)
+  amount                Decimal       @db.Decimal(10, 2)
+  currency              String        @default("BDT") @db.VarChar(3)
+  purposeId             String?       @map("purpose_id") @db.Uuid
+  campaignId            String?       @map("campaign_id") @db.Uuid
+  source                String?       @db.VarChar(100)
+  qrCodeId              String?       @map("qr_code_id") @db.Uuid
+  message               String?       @db.Text
+  isAnonymous           Boolean       @default(false) @map("is_anonymous")
+  showOnDonorWall       Boolean       @default(true) @map("show_on_donor_wall")
+  status                PaymentStatus @default(pending)
+  paymentProvider       String        @default("EPS") @map("payment_provider") @db.VarChar(30)
+  paymentIntentId       String?       @map("payment_intent_id") @db.VarChar(100)
+  gatewayTransactionId  String?       @map("gateway_transaction_id") @db.VarChar(100)
+  paidAt                DateTime?     @map("paid_at") @db.Timestamptz
+  paymentId             String?       @unique @map("payment_id") @db.Uuid
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  user     User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  purpose  DonationPurpose?  @relation(fields: [purposeId], references: [id], onDelete: SetNull)
+  campaign DonationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  qrCode   DonationQrCode?   @relation(fields: [qrCodeId], references: [id], onDelete: SetNull)
+  payment  Payment?          @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([referenceNo])
+  @@map("donations")
+}
+
+model DonationQrCode {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String   @db.VarChar(120)
+  slug          String   @unique @db.VarChar(140)
+  purposeId     String?  @map("purpose_id") @db.Uuid
+  campaignId    String?  @map("campaign_id") @db.Uuid
+  source        String?  @db.VarChar(100)
+  location      String?  @db.VarChar(255)
+  targetUrl     String   @map("target_url") @db.Text
+  qrImageUrl    String?  @map("qr_image_url") @db.Text
+  scanCount     Int      @default(0) @map("scan_count")
+  donationCount Int      @default(0) @map("donation_count")
+  totalRaised   Decimal  @default(0) @map("total_raised") @db.Decimal(14, 2)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  purpose   DonationPurpose?  @relation(fields: [purposeId], references: [id], onDelete: SetNull)
+  campaign  DonationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  donations Donation[]
+
+  @@map("donation_qr_codes")
+}
+
+model DonationImpactStory {
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  titleEn            String                  @map("title_en") @db.VarChar(255)
+  titleBn            String?                 @map("title_bn") @db.VarChar(255)
+  slug               String                  @unique @db.VarChar(280)
+  storyType          DonationImpactStoryType @default(RESCUE) @map("story_type")
+  location           String?                 @db.VarChar(255)
+  animalType         String?                 @map("animal_type") @db.VarChar(100)
+  shortDescriptionEn String?                 @map("short_description_en") @db.Text
+  shortDescriptionBn String?                 @map("short_description_bn") @db.Text
+  fullStoryEn        String                  @map("full_story_en") @db.Text
+  fullStoryBn        String?                 @map("full_story_bn") @db.Text
+  beforeImageUrl     String?                 @map("before_image_url") @db.Text
+  afterImageUrl      String?                 @map("after_image_url") @db.Text
+  costUsed           Decimal?                @map("cost_used") @db.Decimal(12, 2)
+  purposeId          String?                 @map("purpose_id") @db.Uuid
+  campaignId         String?                 @map("campaign_id") @db.Uuid
+  storyDate          DateTime?               @map("story_date") @db.Timestamptz
+  status             String                  @default("DRAFT") @db.VarChar(20)
+  showOnDonationPage Boolean                 @default(true) @map("show_on_donation_page")
+  sortOrder          Int                     @default(0) @map("sort_order")
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+
+  purpose  DonationPurpose?  @relation(fields: [purposeId], references: [id], onDelete: SetNull)
+  campaign DonationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([status, showOnDonationPage, sortOrder])
+  @@map("donation_impact_stories")
+}
+
+model DonationTransparencyReport {
+  id                         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportMonth                String   @map("report_month") @db.VarChar(7)
+  titleEn                    String   @map("title_en") @db.VarChar(255)
+  titleBn                    String?  @map("title_bn") @db.VarChar(255)
+  totalReceived              Decimal  @default(0) @map("total_received") @db.Decimal(14, 2)
+  totalUsed                  Decimal  @default(0) @map("total_used") @db.Decimal(14, 2)
+  openingBalance             Decimal  @default(0) @map("opening_balance") @db.Decimal(14, 2)
+  closingBalance             Decimal  @default(0) @map("closing_balance") @db.Decimal(14, 2)
+  vaccinationExpense         Decimal  @default(0) @map("vaccination_expense") @db.Decimal(12, 2)
+  foodExpense                Decimal  @default(0) @map("food_expense") @db.Decimal(12, 2)
+  treatmentExpense           Decimal  @default(0) @map("treatment_expense") @db.Decimal(12, 2)
+  rescueTransportExpense     Decimal  @default(0) @map("rescue_transport_expense") @db.Decimal(12, 2)
+  clinicFundAllocation       Decimal  @default(0) @map("clinic_fund_allocation") @db.Decimal(14, 2)
+  adminAndProcessingExpense  Decimal  @default(0) @map("admin_and_processing_expense") @db.Decimal(12, 2)
+  pdfUrl                     String?  @map("pdf_url") @db.Text
+  status                     String   @default("DRAFT") @db.VarChar(20)
+  createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("donation_transparency_reports")
+}
+
+model DonationPageSetting {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  heroTitleEn          String   @map("hero_title_en") @db.VarChar(255)
+  heroTitleBn          String?  @map("hero_title_bn") @db.VarChar(255)
+  heroSubtitleEn       String?  @map("hero_subtitle_en") @db.Text
+  heroSubtitleBn       String?  @map("hero_subtitle_bn") @db.Text
+  heroImageUrl         String?  @map("hero_image_url") @db.Text
+  heroVideoUrl         String?  @map("hero_video_url") @db.Text
+  primaryCtaTextEn     String?  @map("primary_cta_text_en") @db.VarChar(100)
+  primaryCtaTextBn     String?  @map("primary_cta_text_bn") @db.VarChar(100)
+  secondaryCtaTextEn   String?  @map("secondary_cta_text_en") @db.VarChar(100)
+  secondaryCtaTextBn   String?  @map("secondary_cta_text_bn") @db.VarChar(100)
+  goalAmount           Decimal? @map("goal_amount") @db.Decimal(14, 2)
+  showImpactCounters   Boolean  @default(true) @map("show_impact_counters")
+  showPurposeCards     Boolean  @default(true) @map("show_purpose_cards")
+  showCampaigns        Boolean  @default(true) @map("show_campaigns")
+  showImpactStories    Boolean  @default(true) @map("show_impact_stories")
+  showDonorWall        Boolean  @default(true) @map("show_donor_wall")
+  showTransparency     Boolean  @default(true) @map("show_transparency")
+  showQrSection        Boolean  @default(true) @map("show_qr_section")
+  faqJson              Json?    @map("faq_json")
+  seoTitle             String?  @map("seo_title") @db.VarChar(255)
+  seoDescription       String?  @map("seo_description") @db.Text
+  isActive             Boolean  @default(true) @map("is_active")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("donation_page_settings")
 }

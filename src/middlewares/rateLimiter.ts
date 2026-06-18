@@ -58,3 +58,21 @@ export const callbackLimiter = rateLimit({
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests.' },
 });
+
+/** OTP request limit — 5 requests per 15 minutes */
+export const otpRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many OTP requests. Please try again in 15 minutes.' },
+});
+
+/** OAuth callback limit — 20 requests per 15 minutes */
+export const oauthCallbackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many OAuth attempts. Please try again later.' },
+});

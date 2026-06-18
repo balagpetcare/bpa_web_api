@@ -53,6 +53,7 @@ import { roadmapItemsAdminRouter, roadmapItemsPublicRouter } from './modules/roa
 import { diagnosticCenterServicesAdminRouter, diagnosticCenterServicesPublicRouter } from './modules/diagnostic-center-services/diagnostic-center-services.router';
 import { siteSettingsAdminRouter, siteSettingsPublicRouter } from './modules/site-settings/site-settings.router';
 import { communityMembershipAdminRouter, communityMembershipPublicRouter } from './modules/community-membership/community-membership.router';
+import { donationsPublicRouter, donationsAdminRouter } from './modules/donations/donations.router';
 import meRouter from './modules/me/me.router';
 
 const app = express();
@@ -188,6 +189,10 @@ app.use(`${v1}/public/community-membership`, communityMembershipPublicRouter);
 // Aliases: frontend may call /public/membership/* or /public/community-care/*
 app.use(`${v1}/public/membership`, communityMembershipPublicRouter);
 app.use(`${v1}/public/community-care`, communityMembershipPublicRouter);
+
+// ─── Donations ──────────────────────────────────────────────────
+app.use(`${v1}/public/donations`, donationsPublicRouter);
+app.use(`${v1}/admin/donations`, donationsAdminRouter);
 
 // ─── Authenticated User (me) ────────────────────────────────────
 app.use(`${v1}/me`, meRouter);

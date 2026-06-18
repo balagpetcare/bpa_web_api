@@ -96,6 +96,33 @@ const envSchema = z.object({
 
   // Legacy alias — kept for backwards compatibility; S3_PUBLIC_BASE_URL takes precedence.
   MEDIA_PUBLIC_BASE_URL: z.string().optional(),
+
+  // ─── New Auth & Social ───────────────────────────────────────────────────
+  AUTH_COOKIE_NAME: z.string().default('bpa_user_session'),
+  AUTH_JWT_SECRET: z.string().min(32, 'AUTH_JWT_SECRET must be at least 32 characters long').default('local_dev_secret_min_32_chars_change_in_production'),
+  AUTH_JWT_EXPIRES_IN: z.string().default('7d'),
+  AUTH_PUBLIC_WEB_URL: z.string().url().default('http://localhost:3000'),
+  AUTH_ADMIN_WEB_URL: z.string().url().default('http://localhost:3001'),
+  AUTH_API_URL: z.string().url().default('http://localhost:4000'),
+
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CALLBACK_URL: z.string().url().optional(),
+
+  FACEBOOK_CLIENT_ID: z.string().optional(),
+  FACEBOOK_CLIENT_SECRET: z.string().optional(),
+  FACEBOOK_CALLBACK_URL: z.string().url().optional(),
+
+  INSTAGRAM_CLIENT_ID: z.string().optional(),
+  INSTAGRAM_CLIENT_SECRET: z.string().optional(),
+  INSTAGRAM_CALLBACK_URL: z.string().url().optional(),
+
+  TWITTER_CLIENT_ID: z.string().optional(),
+  TWITTER_CLIENT_SECRET: z.string().optional(),
+  TWITTER_CALLBACK_URL: z.string().url().optional(),
+
+  OTP_EXPIRY_MINUTES: z.coerce.number().default(5),
+  OTP_MAX_ATTEMPTS: z.coerce.number().default(5),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -119,5 +146,11 @@ if (config.NODE_ENV === 'production' && config.QR_SECRET === QR_SECRET_DEFAULT) 
 const CARE_CARD_QR_SECRET_DEFAULT = 'bpa-care-card-qr-secret-change-in-production!!';
 if (config.NODE_ENV === 'production' && config.CARE_CARD_QR_SECRET === CARE_CARD_QR_SECRET_DEFAULT) {
   console.error('[SECURITY] CARE_CARD_QR_SECRET is using the insecure default value. Set CARE_CARD_QR_SECRET in environment before deploying to production!');
+  process.exit(1);
+}
+
+const AUTH_JWT_SECRET_DEFAULT = 'local_dev_secret_min_32_chars_change_in_production';
+if (config.NODE_ENV === 'production' && config.AUTH_JWT_SECRET === AUTH_JWT_SECRET_DEFAULT) {
+  console.error('[SECURITY] AUTH_JWT_SECRET is using the insecure default value. Set AUTH_JWT_SECRET in environment before deploying to production!');
   process.exit(1);
 }

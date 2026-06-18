@@ -19,7 +19,7 @@ const userSelect = {
 function format(u: {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   isActive: boolean;
   createdAt: Date;
@@ -74,15 +74,17 @@ export async function getUserById(id: string): Promise<UserResponse> {
 }
 
 export async function createUser(dto: CreateUserDto): Promise<UserResponse> {
-  const existing = await prisma.user.findUnique({ where: { email: dto.email } });
-  if (existing) throw AppError.conflict('A user with this email already exists');
+  if (dto.email) {
+    const existing = await prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) throw AppError.conflict('A user with this email already exists');
+  }
 
   const passwordHash = await hashPassword(dto.password);
 
   const user = await prisma.user.create({
     data: {
       name: dto.name,
-      email: dto.email,
+      email: dto.email || null,
       passwordHash,
       phone: dto.phone,
       userRoles: dto.roleIds?.length

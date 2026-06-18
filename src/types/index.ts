@@ -2,7 +2,7 @@ import { Request } from 'express';
 
 export interface AuthPayload {
   sub: string;
-  email: string;
+  email?: string;
   roles: string[];
   // permissions intentionally excluded from the JWT.
   // A super_admin with 100+ permissions produces a ~32 KB token, which exceeds

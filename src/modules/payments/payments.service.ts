@@ -4,6 +4,7 @@ import { AppError } from '../../utils/AppError';
 import { getEPS, isEPSConfigured } from '../../services/eps.service';
 import * as repo from './payments.repository';
 import { settleCampaignPayment, cancelCampaignPayment } from '../campaign-registrations/campaign-registrations.service';
+import { settleDonationPayment, cancelDonationPayment } from '../donations/donations.service';
 import { issueCarePartnerCardOnPayment } from '../care-partner-cards/care-partner-cards.service';
 import { config } from '../../config';
 
@@ -169,6 +170,10 @@ async function activateLinkedEntities(payment: { id: string; entityType: string 
     await settleCampaignPayment(payment.id);
     return;
   }
+  if (payment.entityType === 'donation') {
+    await settleDonationPayment(payment.id);
+    return;
+  }
   if (payment.entityType === 'care_partner') {
     await issueCarePartnerCardOnPayment(payment.id);
     return;
@@ -192,6 +197,10 @@ async function activateLinkedEntities(payment: { id: string; entityType: string 
 async function deactivateLinkedEntities(payment: { id: string; entityType: string | null; purpose?: string }): Promise<void> {
   if (payment.entityType === 'campaign') {
     await cancelCampaignPayment(payment.id);
+    return;
+  }
+  if (payment.entityType === 'donation') {
+    await cancelDonationPayment(payment.id);
     return;
   }
   if (payment.entityType === 'care_partner') {
