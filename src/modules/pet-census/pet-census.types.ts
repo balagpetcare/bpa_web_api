@@ -140,8 +140,15 @@ export const censusListQuerySchema = z.object({
   status: z.nativeEnum(PetCensusStatus).optional(),
   zoneId: z.string().uuid().optional(),
   petType: petTypeSchema.optional(),
+  // Text location filters (legacy — kept working)
   division: z.string().optional(),
   district: z.string().optional(),
+  // Location tree FK ID filters (new, non-breaking)
+  divisionId: z.string().uuid().optional(),
+  districtId: z.string().uuid().optional(),
+  upazilaId: z.string().uuid().optional(),
+  cityCorporationId: z.string().uuid().optional(),
+  wardId: z.string().uuid().optional(),
   memberStatus: queryBoolean.optional(),
   vaccinationStatus: vaccinationStatusSchema.optional(),
   area: z.string().optional(),

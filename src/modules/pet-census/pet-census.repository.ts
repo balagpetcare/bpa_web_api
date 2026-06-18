@@ -17,6 +17,12 @@ function buildCensusWhere(query: CensusListQuery): Prisma.PetCensusSubmissionWhe
   if (query.petType) where.petType = query.petType;
   if (query.division) where.division = { contains: query.division, mode: 'insensitive' };
   if (query.district) where.district = { contains: query.district, mode: 'insensitive' };
+  // Location FK ID filters (exact match, non-breaking alongside text filters above)
+  if (query.divisionId) where.divisionId = query.divisionId;
+  if (query.districtId) where.districtId = query.districtId;
+  if (query.upazilaId) where.upazilaId = query.upazilaId;
+  if (query.cityCorporationId) where.cityCorporationId = query.cityCorporationId;
+  if (query.wardId) where.wardId = query.wardId;
   if (query.memberStatus !== undefined) where.isBpaMember = query.memberStatus;
   if (query.vaccinationStatus) where.vaccinationStatus = query.vaccinationStatus;
   if (query.area) {

@@ -18,11 +18,21 @@ const guestPetSchema = z.object({
   weightKg: z.number().positive().optional(),
 });
 
+const optUuid = z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined);
+
 const guestBatchSchema = z.object({
   ownerName: z.string().min(1).max(120),
   mobile: z.string().min(7).max(20),
   email: z.string().email().max(255).optional(),
   address: z.string().max(500).optional(),
+  // Optional location tree FK fields
+  divisionId: optUuid,
+  districtId: optUuid,
+  upazilaId: optUuid,
+  unionId: optUuid,
+  cityCorporationId: optUuid,
+  cityZoneId: optUuid,
+  wardId: optUuid,
   pets: z.array(guestPetSchema).min(1).max(10),
 });
 
@@ -36,6 +46,16 @@ router.post(
     try {
       const dto = req.body as z.infer<typeof guestBatchSchema>;
 
+      const locationFields = {
+        divisionId: dto.divisionId ?? null,
+        districtId: dto.districtId ?? null,
+        upazilaId: dto.upazilaId ?? null,
+        unionId: dto.unionId ?? null,
+        cityCorporationId: dto.cityCorporationId ?? null,
+        cityZoneId: dto.cityZoneId ?? null,
+        wardId: dto.wardId ?? null,
+      };
+
       // Find or create owner by mobile
       let owner = await prisma.petOwner.findFirst({ where: { mobile: dto.mobile } });
       if (!owner) {
@@ -46,7 +66,14 @@ router.post(
             email: dto.email,
             address: dto.address,
             isGuest: true,
+            ...locationFields,
           },
+        });
+      } else if (dto.divisionId) {
+        // Update location if provided and owner already exists
+        owner = await prisma.petOwner.update({
+          where: { id: owner.id },
+          data: locationFields,
         });
       }
 
