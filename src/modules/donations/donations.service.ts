@@ -288,7 +288,6 @@ export async function initializeDonation(params: {
 // ─── Payment Callbacks ──────────────────────────────────────────
 
 import { sendEmail } from '../../services/email.service';
-import { sendSms } from '../../services/sms.service';
 
 // ...
 
@@ -350,9 +349,16 @@ export async function settleDonationPayment(paymentId: string) {
 
   if (donation.donorPhone) {
     const donorName = donation.isAnonymous ? 'Donor' : donation.donorName.split(' ')[0];
-    void sendSms({
+    const { sendTransactionalSms } = await import('../../services/sms.service');
+    void sendTransactionalSms({
       to: donation.donorPhone,
       message: `Dear ${donorName}, BPA received your donation of ${amountFmt}. Ref: ${donation.referenceNo}. View receipt: ${receiptUrl}. Thank you!`,
+      messageType: 'donation_receipt',
+      module: 'donations',
+      entityType: 'Donation',
+      entityId: donation.id,
+      reference: donation.referenceNo,
+      idempotencyKey: `donation:receipt:${donation.id}`,
     }).catch(console.error);
   }
 }

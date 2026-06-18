@@ -71,10 +71,16 @@ export async function issueCarePartnerCardOnPayment(paymentId: string): Promise<
 
   // Fire-and-forget SMS confirmation
   try {
-    const { sendSms } = await import('../../services/sms.service');
-    void sendSms({
+    const { sendTransactionalSms } = await import('../../services/sms.service');
+    void sendTransactionalSms({
       to: contribution.contributorMobile,
       message: `BPA: Your Care Partner Card (${cardNumber}) for ${contribution.zone.name} zone has been issued. Thank you for your contribution! Verify at: ${buildCareCardVerifyUrl(qrToken)}`,
+      messageType: 'care_partner_card_issued',
+      module: 'care_partner',
+      entityType: 'CareContribution',
+      entityId: contribution.id,
+      reference: contribution.contributionNumber,
+      idempotencyKey: `care_partner:card_issued:${contribution.id}`,
     });
   } catch {
     // SMS failure must not interrupt card issuance

@@ -66,10 +66,13 @@ enum ContactStatus {
 
 enum SmsStatus {
   queued
+  sending
   sent
   delivered
   failed
   undelivered
+  cancelled
+  skipped
 }
 
 enum EmailStatus {
@@ -908,19 +911,60 @@ model FooterLink {
 // ─── SMS Logs ───────────────────────────────────────────────────
 
 model SmsLog {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  to            String    @db.VarChar(20)
-  body          String    @db.Text
-  status        SmsStatus @default(queued)
-  provider      String    @db.VarChar(60)
-  providerRef   String?   @map("provider_ref") @db.VarChar(255)
-  failureReason String?   @map("failure_reason") @db.Text
-  payload       Json?
-  sentAt        DateTime? @map("sent_at") @db.Timestamptz
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  to               String    @db.VarChar(20)
+  recipientMasked  String?   @map("recipient_masked") @db.VarChar(20)
+  body             String    @db.Text
+  messageType      String?   @map("message_type") @db.VarChar(80)
+  module           String?   @db.VarChar(60)
+  entityType       String?   @map("entity_type") @db.VarChar(60)
+  entityId         String?   @map("entity_id") @db.Uuid
+  reference        String?   @db.VarChar(120)
+  status           SmsStatus @default(queued)
+  provider         String    @db.VarChar(60)
+  providerRef      String?   @map("provider_ref") @db.VarChar(255)
+  failureReason    String?   @map("failure_reason") @db.VarChar(60)
+  failureDetail    String?   @map("failure_detail") @db.Text
+  payload          Json?
+  attemptCount     Int       @default(0) @map("attempt_count")
+  maxAttempts      Int       @default(3) @map("max_attempts")
+  lastAttemptAt    DateTime? @map("last_attempt_at") @db.Timestamptz
+  sentAt           DateTime? @map("sent_at") @db.Timestamptz
+  failedAt         DateTime? @map("failed_at") @db.Timestamptz
+  lastError        String?   @map("last_error") @db.Text
+  isOtp            Boolean   @default(false) @map("is_otp")
+  idempotencyKey   String?   @map("idempotency_key") @db.VarChar(255)
+  resentById       String?   @map("resent_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
+  attempts SmsAttempt[]
+
+  @@index([status, createdAt])
+  @@index([module, messageType])
+  @@index([isOtp])
+  @@index([idempotencyKey])
   @@map("sms_logs")
+}
+
+model SmsAttempt {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  smsLogId               String    @map("sms_log_id") @db.Uuid
+  attemptNumber          Int       @map("attempt_number")
+  status                 SmsStatus
+  provider               String    @db.VarChar(60)
+  providerMessageId      String?   @map("provider_message_id") @db.VarChar(255)
+  gatewayRequestSummary  String?   @map("gateway_request_summary") @db.Text
+  gatewayResponseSummary String?   @map("gateway_response_summary") @db.Text
+  errorCode              String?   @map("error_code") @db.VarChar(60)
+  errorMessage           String?   @map("error_message") @db.Text
+  attemptedBy            String?   @map("attempted_by") @db.Uuid
+  attemptedAt            DateTime  @default(now()) @map("attempted_at") @db.Timestamptz
+
+  smsLog SmsLog @relation(fields: [smsLogId], references: [id], onDelete: Cascade)
+
+  @@index([smsLogId])
+  @@map("sms_attempts")
 }
 
 // ─── Email Logs ─────────────────────────────────────────────────

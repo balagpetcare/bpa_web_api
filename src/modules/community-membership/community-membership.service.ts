@@ -1130,19 +1130,6 @@ export async function sendMembershipActivationSms(purchaseId: string) {
       return;
     }
 
-    // Check if SMS was already sent for this card to maintain idempotency
-    const existing = await prisma.smsLog.findFirst({
-      where: {
-        to: purchase.memberMobile,
-        body: { contains: purchase.card.cardNumber },
-      }
-    });
-
-    if (existing) {
-      console.log(`[Membership SMS] Activation SMS already sent for purchase ${purchaseId} / card ${purchase.card.cardNumber}. Skipping.`);
-      return;
-    }
-
     const settings = await prisma.siteSettings.findUnique({ where: { id: 'default' } });
     const supportPhone = settings?.supportPhone || '01575008300';
     const frontendUrl = config.FRONTEND_URL.replace(/\/$/, '');
@@ -1150,10 +1137,16 @@ export async function sendMembershipActivationSms(purchaseId: string) {
 
     const message = `BPA: আপনার Community Care Partner Card সক্রিয় হয়েছে। কার্ড নং: ${purchase.card.cardNumber}. ডাউনলোড: ${downloadUrl}. সহায়তা: ${supportPhone}`;
 
-    const { sendSms } = await import('../../services/sms.service');
-    await sendSms({
+    const { sendTransactionalSms } = await import('../../services/sms.service');
+    await sendTransactionalSms({
       to: purchase.memberMobile,
       message,
+      messageType: 'membership_activation',
+      module: 'community_membership',
+      entityType: 'CommunityMembershipPurchase',
+      entityId: purchase.id,
+      reference: (purchase as any).purchaseReference ?? purchase.id,
+      idempotencyKey: `membership:activated:${purchase.id}`,
     });
   } catch (err) {
     console.error('[Membership SMS] Error sending activation SMS:', err);
