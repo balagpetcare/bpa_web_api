@@ -53,14 +53,25 @@ function normalizePhone(phone: string): string {
   return cleaned;
 }
 
+interface LocationFields {
+  divisionId?: string | null;
+  districtId?: string | null;
+  upazilaId?: string | null;
+  unionId?: string | null;
+  cityCorporationId?: string | null;
+  cityZoneId?: string | null;
+  wardId?: string | null;
+  addressLine?: string | null;
+}
+
 export async function updateProfile(
   userId: string,
-  dto: { name?: string; phone?: string },
+  dto: { name?: string; phone?: string } & LocationFields,
 ): Promise<{ id: string; name: string; email: string | null; phone: string | null; avatarUrl: string | null; profileCompletion: number }> {
   const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
   if (!user) throw AppError.notFound('User');
 
-  const data: { name?: string; phone?: string | null } = {};
+  const data: Record<string, unknown> = {};
 
   if (dto.name?.trim()) {
     data.name = dto.name.trim();
@@ -79,6 +90,15 @@ export async function updateProfile(
         data.phone = normalized;
       }
     }
+  }
+
+  // Location FK fields — pass-through (nulls clear the value)
+  const LOC_FIELDS = [
+    'divisionId', 'districtId', 'upazilaId', 'unionId',
+    'cityCorporationId', 'cityZoneId', 'wardId', 'addressLine',
+  ] as const;
+  for (const f of LOC_FIELDS) {
+    if (f in dto) data[f] = (dto as Record<string, unknown>)[f] ?? null;
   }
 
   const updated = await prisma.user.update({ where: { id: userId }, data });

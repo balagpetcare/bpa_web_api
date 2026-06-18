@@ -1591,6 +1591,11 @@ model CommunityZone {
   createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz
 
+  // Location tree FK references (nullable, text fields kept for backward compat)
+  divisionId  String?  @map("division_id") @db.Uuid
+  districtId  String?  @map("district_id") @db.Uuid
+  upazilaId   String?  @map("upazila_id") @db.Uuid
+
   coverImage          MediaFile?                    @relation("CommunityZoneCover", fields: [coverImageId], references: [id], onDelete: SetNull)
   contributions       CareContribution[]
   cards               CarePartnerCard[]
@@ -1722,6 +1727,14 @@ model PetCensusSubmission {
   ownerAddress            String?         @map("owner_address") @db.Text
   zoneId                  String?         @map("zone_id") @db.Uuid
   areaText                String?         @map("area_text") @db.VarChar(255)
+  // Location tree FK references (nullable, text fields division/district/cityUpazila kept as fallback)
+  divisionId              String?         @map("division_id") @db.Uuid
+  districtId              String?         @map("district_id") @db.Uuid
+  upazilaId               String?         @map("upazila_id") @db.Uuid
+  unionId                 String?         @map("union_id") @db.Uuid
+  cityCorporationId       String?         @map("city_corporation_id") @db.Uuid
+  cityZoneId              String?         @map("city_zone_id") @db.Uuid
+  wardId                  String?         @map("ward_id") @db.Uuid
   isBpaMember             Boolean         @default(false) @map("is_bpa_member")
   petName                 String?         @map("pet_name") @db.VarChar(120)
   petType                 String?         @map("pet_type") @db.VarChar(20)
