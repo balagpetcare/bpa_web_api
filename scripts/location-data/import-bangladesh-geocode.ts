@@ -25,10 +25,24 @@ function slugify(str: string): string {
     .replace(/-+/g, '-');
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
+async function fetchRows<T>(url: string): Promise<T[]> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
-  return res.json() as Promise<T>;
+  const json: unknown = await res.json();
+
+  if (!Array.isArray(json)) return [];
+
+  // New format (PHPMyAdmin JSON export): [{type:"header",...},{type:"table","data":[...]},...]
+  // Detect by checking if first element has a "type" string key (not a data row).
+  const first = json[0];
+  if (first && typeof first === 'object' && typeof (first as Record<string, unknown>).type === 'string') {
+    const table = (json as Array<Record<string, unknown>>).find((e) => e.type === 'table');
+    if (table && Array.isArray(table.data)) return table.data as T[];
+    return [];
+  }
+
+  // Old format: direct array of row objects
+  return json as T[];
 }
 
 // ── Upsert one location node ───────────────────────────────────────────────────
@@ -94,7 +108,7 @@ interface RawDivision {
 
 async function importDivisions(): Promise<Map<string, string>> {
   console.log('  Importing divisions…');
-  const rows: RawDivision[] = await fetchJson(`${BASE_RAW}/divisions/divisions.json`);
+  const rows: RawDivision[] = await fetchRows(`${BASE_RAW}/divisions/divisions.json`);
 
   const idMap = new Map<string, string>(); // sourceId → DB uuid
 
@@ -130,7 +144,7 @@ async function importDistricts(
   divisionMap: Map<string, string>,
 ): Promise<Map<string, string>> {
   console.log('  Importing districts…');
-  const rows: RawDistrict[] = await fetchJson(`${BASE_RAW}/districts/districts.json`);
+  const rows: RawDistrict[] = await fetchRows(`${BASE_RAW}/districts/districts.json`);
 
   const idMap = new Map<string, string>();
   let skipped = 0;
@@ -170,7 +184,7 @@ async function importUpazilas(
   districtMap: Map<string, string>,
 ): Promise<Map<string, string>> {
   console.log('  Importing upazilas…');
-  const rows: RawUpazila[] = await fetchJson(`${BASE_RAW}/upazilas/upazilas.json`);
+  const rows: RawUpazila[] = await fetchRows(`${BASE_RAW}/upazilas/upazilas.json`);
 
   const idMap = new Map<string, string>();
   let skipped = 0;
@@ -211,7 +225,7 @@ interface RawUnion {
 
 async function importUnions(upazilaMap: Map<string, string>): Promise<void> {
   console.log('  Importing unions (this takes a moment)…');
-  const rows: RawUnion[] = await fetchJson(`${BASE_RAW}/unions/unions.json`);
+  const rows: RawUnion[] = await fetchRows(`${BASE_RAW}/unions/unions.json`);
 
   let imported = 0;
   let skipped = 0;
