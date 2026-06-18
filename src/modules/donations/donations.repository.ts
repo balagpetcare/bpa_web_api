@@ -96,6 +96,13 @@ export async function updateDonation(id: string, data: Prisma.DonationUpdateInpu
   return prisma.donation.update({ where: { id }, data });
 }
 
+export async function updatePaymentForDonation(
+  paymentId: string,
+  data: Prisma.PaymentUpdateInput,
+) {
+  return prisma.payment.update({ where: { id: paymentId }, data });
+}
+
 export async function findDonationByReference(referenceNo: string) {
   return prisma.donation.findUnique({
     where: { referenceNo },
@@ -284,6 +291,25 @@ export async function getDonationPageSettings() {
   }
 
   return settings;
+}
+
+export async function getDonationImpactCounters() {
+  const [successfulDonations, totalRaisedAggregate, donorCount] = await Promise.all([
+    prisma.donation.count({ where: { status: 'success' } }),
+    prisma.donation.aggregate({ where: { status: 'success' }, _sum: { amount: true } }),
+    prisma.donation.count({
+      where: {
+        status: 'success',
+        isAnonymous: false,
+      },
+    }),
+  ]);
+
+  return {
+    successfulDonations,
+    totalRaised: Number(totalRaisedAggregate._sum.amount || 0),
+    donorCount,
+  };
 }
 
 export async function updateDonationPageSettings(id: string, data: Prisma.DonationPageSettingUpdateInput) {

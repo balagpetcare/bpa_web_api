@@ -10,6 +10,7 @@ const adminRouter = Router();
 // ─── Public Routes ───────────────────────────────────────────────
 
 publicRouter.get('/settings', ctrl.getDonationPageDataHandler);
+publicRouter.get('/page-data', ctrl.getDonationPageDataHandler);
 publicRouter.get('/purposes', ctrl.getActivePurposesHandler);
 publicRouter.get('/campaigns', ctrl.getActiveCampaignsHandler);
 publicRouter.get('/campaigns/:slug', ctrl.getCampaignDetailHandler);

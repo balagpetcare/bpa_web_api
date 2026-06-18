@@ -1,6 +1,6 @@
 import { AppError } from '../../utils/AppError';
 import * as repo from './donations.repository';
-import { initializeEpsPayment, generateMerchantTxnId } from '../../services/eps.service';
+import { initializeEpsPayment, generateMerchantTxnId, isEpsMockModeEnabled } from '../../services/eps.service';
 import { prisma } from '../../database/prisma';
 import { config } from '../../config';
 import QRCode from 'qrcode';
@@ -13,6 +13,19 @@ const RECEIPT_POLICY =
   'This receipt confirms your donation has been received and is non-refundable unless cancelled before processing. ' +
   'BPA is a registered non-profit animal welfare organization. Your contribution is used solely for animal care, ' +
   'rescue, vaccination, and welfare programs.';
+
+function buildGatewayUnavailableError(referenceNo: string) {
+  return new AppError(
+    503,
+    'EPS_UNAVAILABLE',
+    'Payment gateway is temporarily unavailable. Please try again later.',
+    [{ donationReferenceNo: referenceNo }],
+  );
+}
+
+function buildMockDonationPaymentUrl(referenceNo: string) {
+  return `${config.FRONTEND_URL.replace(/\/$/, '')}/donate/thank-you?ref=${encodeURIComponent(referenceNo)}&mock=1`;
+}
 
 async function generateReferenceNo() {
   const year = new Date().getFullYear();
@@ -96,8 +109,8 @@ export async function initializeDonation(params: {
   const merchantTxnId = generateMerchantTxnId();
   const referenceNo = await generateReferenceNo();
 
-  return await prisma.$transaction(async (tx) => {
-    const payment = await tx.payment.create({
+  const { payment, donation } = await prisma.$transaction(async (tx) => {
+    const createdPayment = await tx.payment.create({
       data: {
         gateway: 'eps',
         merchantTxnId,
@@ -109,7 +122,7 @@ export async function initializeDonation(params: {
       },
     });
 
-    const donation = await tx.donation.create({
+    const createdDonation = await tx.donation.create({
       data: {
         referenceNo,
         amount: params.amount,
@@ -129,11 +142,30 @@ export async function initializeDonation(params: {
         campaignId: resolvedCampaignId,
         qrCodeId: resolvedQrId,
         source: params.source,
-        paymentId: payment.id,
+        paymentId: createdPayment.id,
         paymentProvider: 'EPS',
       },
     });
 
+    return { payment: createdPayment, donation: createdDonation };
+  });
+
+  if (isEpsMockModeEnabled()) {
+    await repo.updatePaymentForDonation(payment.id, {
+      payload: {
+        mode: 'mock',
+        mockRedirectUrl: buildMockDonationPaymentUrl(referenceNo),
+      },
+    });
+
+    return {
+      referenceNo: donation.referenceNo,
+      paymentUrl: buildMockDonationPaymentUrl(referenceNo),
+      mockMode: true,
+    };
+  }
+
+  try {
     const epsResult = await initializeEpsPayment({
       merchantTransactionId: merchantTxnId,
       customerOrderId: referenceNo,
@@ -146,14 +178,45 @@ export async function initializeDonation(params: {
       customerState: 'Donation',
       customerPostcode: '1000',
       productName: 'Donation to BPA',
-      bookingRef: referenceNo,
+      referenceRef: referenceNo,
+    });
+
+    const gatewayPayload = epsResult as unknown as Record<string, unknown>;
+    await repo.updatePaymentForDonation(payment.id, {
+      gatewayRef:
+        typeof gatewayPayload.TransactionId === 'string'
+          ? gatewayPayload.TransactionId
+          : typeof gatewayPayload.EPSTransactionId === 'string'
+            ? gatewayPayload.EPSTransactionId
+            : undefined,
+      epsTxnId:
+        typeof gatewayPayload.EPSTransactionId === 'string'
+          ? gatewayPayload.EPSTransactionId
+          : undefined,
+      payload: gatewayPayload as never,
     });
 
     return {
       referenceNo: donation.referenceNo,
-      paymentUrl: epsResult.RedirectURL,
+      paymentUrl: String(gatewayPayload.RedirectURL || ''),
     };
-  });
+  } catch (error) {
+    await Promise.all([
+      repo.updatePaymentForDonation(payment.id, {
+        status: 'failed',
+        payload: {
+          code: 'EPS_UNAVAILABLE',
+          message: error instanceof Error ? error.message : 'Payment gateway initialization failed',
+          failedAt: new Date().toISOString(),
+        },
+      }),
+      repo.updateDonation(donation.id, {
+        status: 'pending',
+      }),
+    ]);
+
+    throw buildGatewayUnavailableError(referenceNo);
+  }
 }
 
 // ─── Payment Callbacks ──────────────────────────────────────────
@@ -350,16 +413,46 @@ export async function getReceiptData(referenceNo: string) {
 }
 
 export async function getDonationPageData() {
-  const [purposes, campaigns, settings, donors, stories, transparency] = await Promise.all([
+  const [purposes, campaigns, settings, donors, stories, transparency, impactCounters, qrCodes] = await Promise.all([
     repo.listPurposes({ isActive: true }),
     repo.listCampaigns({ status: 'ACTIVE', showOnDonatePage: true }),
     repo.getDonationPageSettings(),
     repo.getDonorWall(15),
     repo.listImpactStories({ status: 'PUBLISHED', showOnDonationPage: true }),
     repo.listTransparencyReports({ status: 'PUBLISHED' }).then(res => res[0] || null),
+    repo.getDonationImpactCounters(),
+    repo.listQrCodes(),
   ]);
 
-  return { purposes, campaigns, settings, donors, stories, transparencySummary: transparency };
+  const activeQrCodes = qrCodes.filter((qr) => qr.isActive);
+  const qrSection = settings.showQrSection
+    ? {
+        enabled: true,
+        featured: activeQrCodes[0] || null,
+        items: activeQrCodes,
+      }
+    : {
+        enabled: false,
+        featured: null,
+        items: [],
+      };
+
+  return {
+    settings,
+    purposes,
+    campaigns,
+    featuredCampaigns: campaigns,
+    impactCounters: {
+      ...impactCounters,
+      goalAmount: settings.goalAmount ? Number(settings.goalAmount) : null,
+    },
+    donors,
+    recentDonorWall: donors,
+    stories,
+    impactStories: stories,
+    transparencySummary: transparency,
+    qrSection,
+  };
 }
 
 export async function handleQrRedirect(slug: string) {

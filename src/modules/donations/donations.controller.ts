@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { sendSuccess, sendCreated, sendNoContent } from '../../utils/response';
 import * as svc from './donations.service';
 import * as repo from './donations.repository';
+import { AppError } from '../../utils/AppError';
 
 // ─── Public Handlers ─────────────────────────────────────────────
 
@@ -52,7 +53,28 @@ export async function initializeDonationHandler(req: Request, res: Response, nex
       userAgent: req.get('user-agent'),
     });
     sendCreated(res, result);
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err instanceof AppError && err.code === 'EPS_UNAVAILABLE') {
+      const donationReferenceNo =
+        Array.isArray(err.details) &&
+        typeof err.details[0] === 'object' &&
+        err.details[0] !== null &&
+        'donationReferenceNo' in err.details[0]
+          ? String((err.details[0] as { donationReferenceNo: string }).donationReferenceNo)
+          : undefined;
+
+      res.status(err.statusCode).json({
+        success: false,
+        error: {
+          code: err.code,
+          message: err.message,
+        },
+        donationReferenceNo,
+      });
+      return;
+    }
+    next(err);
+  }
 }
 
 export async function getDonationStatusHandler(req: Request, res: Response, next: NextFunction) {

@@ -45,6 +45,7 @@ const envSchema = z.object({
   EPS_HASH_KEY: z.string().optional(),
   EPS_MERCHANT_ID: z.string().optional(),
   EPS_STORE_ID: z.string().optional(),
+  EPS_MOCK_MODE: z.enum(['true', 'false']).default('false'),
 
   // Payment channel routing
   // PAYMENT_CHANNEL_MODE=EPS     → use EPS gateway (requires EPS_ENABLED=true + credentials)

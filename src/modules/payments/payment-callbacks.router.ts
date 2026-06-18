@@ -39,6 +39,7 @@ const ORDER_PARAM_NAMES = [
   'bookingref',
   'bookingreference',
   'booking_ref',
+  'ref',
   'value_a',
   'valuea',
   'orderid',
@@ -52,6 +53,7 @@ const DIRECT_BOOKING_PARAM_NAMES = [
   'bookingref',
   'bookingreference',
   'booking_ref',
+  'ref',
   'value_a',
   'valuea',
   'value_b',
@@ -59,6 +61,7 @@ const DIRECT_BOOKING_PARAM_NAMES = [
 ] as const;
 
 const PAYMENT_REF_PARAM_NAMES = [
+  'ref',
   'customerorderid',
   'orderid',
   'value_b',
