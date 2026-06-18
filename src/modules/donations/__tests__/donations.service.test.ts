@@ -8,6 +8,7 @@ jest.mock('../../../database/prisma', () => ({
 }));
 
 jest.mock('../donations.repository', () => ({
+  findDonationByReference: jest.fn(),
   findPurposeBySlug: jest.fn(),
   findCampaignBySlug: jest.fn(),
   findQrCodeBySlug: jest.fn(),
@@ -29,6 +30,8 @@ jest.mock('../../../services/eps.service', () => ({
   generateMerchantTxnId: jest.fn(),
   initializeEpsPayment: jest.fn(),
   isEpsMockModeEnabled: jest.fn(),
+  isDonationEPSMode: jest.fn(),
+  getEPSMissingCredentials: jest.fn(),
 }));
 
 jest.mock('../../../services/email.service', () => ({
@@ -47,20 +50,27 @@ jest.mock('../../../config', () => ({
 
 import { prisma } from '../../../database/prisma';
 import * as repo from '../donations.repository';
-import { generateMerchantTxnId, initializeEpsPayment, isEpsMockModeEnabled } from '../../../services/eps.service';
-import { getDonationPageData, initializeDonation } from '../donations.service';
+import {
+  generateMerchantTxnId, initializeEpsPayment, isEpsMockModeEnabled,
+  isDonationEPSMode, getEPSMissingCredentials,
+} from '../../../services/eps.service';
+import { getDonationPageData, initializeDonation, generateReceiptPdf } from '../donations.service';
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
 const mockRepo = repo as jest.Mocked<typeof repo>;
 const mockGenerateMerchantTxnId = generateMerchantTxnId as jest.MockedFunction<typeof generateMerchantTxnId>;
 const mockInitializeEpsPayment = initializeEpsPayment as jest.MockedFunction<typeof initializeEpsPayment>;
 const mockIsEpsMockModeEnabled = isEpsMockModeEnabled as jest.MockedFunction<typeof isEpsMockModeEnabled>;
+const mockIsDonationEPSMode = isDonationEPSMode as jest.MockedFunction<typeof isDonationEPSMode>;
+const mockGetEPSMissingCredentials = getEPSMissingCredentials as jest.MockedFunction<typeof getEPSMissingCredentials>;
 
 describe('donations.service initializeDonation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGenerateMerchantTxnId.mockReturnValue('20260618112233444');
     mockIsEpsMockModeEnabled.mockReturnValue(false);
+    mockIsDonationEPSMode.mockReturnValue(true);
+    mockGetEPSMissingCredentials.mockReturnValue([]);
     (mockPrisma.donation.findFirst as jest.Mock).mockResolvedValue(null);
     mockRepo.findPurposeById.mockResolvedValue(null as never);
     mockRepo.findCampaignById.mockResolvedValue(null as never);
@@ -233,5 +243,86 @@ describe('donations.service getDonationPageData', () => {
         items: [{ id: 'qr-1', isActive: true }],
       },
     });
+  });
+});
+
+describe('donations.service generateReceiptPdf', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('generates a PDF for BPA-DON-2026-00014 that fits on exactly one page', async () => {
+    const mockDonation = {
+      id: 'donation-14',
+      referenceNo: 'BPA-DON-2026-00014',
+      donorName: 'John Doe',
+      donorEmail: 'john@example.com',
+      donorCountry: 'Bangladesh',
+      donorPhone: '01711000000',
+      isAnonymous: false,
+      organizationName: 'Doe Org',
+      amount: 5000.00,
+      currency: 'BDT',
+      status: 'success',
+      paymentProvider: 'EPS',
+      gatewayTransactionId: 'TXN-12345',
+      paidAt: new Date('2026-06-18T10:00:00.000Z'),
+      createdAt: new Date('2026-06-18T09:50:00.000Z'),
+      message: 'Keep up the great work! Highly appreciated.',
+      campaign: { titleEn: 'Feed the Animals', titleBn: 'প্রাণীদের খাওয়ান' },
+      purpose: { titleEn: 'General Animal Welfare', titleBn: 'সাধারণ প্রাণী কল্যাণ' },
+    };
+
+    mockRepo.findDonationByReference.mockResolvedValue(mockDonation as any);
+
+    // Call PDF generation
+    const buffer = await generateReceiptPdf('BPA-DON-2026-00014', 'bn');
+
+    // Confirm buffer is generated and page count is 1
+    expect(buffer).toBeInstanceOf(Buffer);
+    
+    // Page count validation using binary string regex matching /Type /Page
+    const pdfText = buffer.toString('binary');
+    const matches = pdfText.match(/\/Type\s*\/Page\b/g);
+    const pageCount = matches ? matches.length : 0;
+
+    expect(pageCount).toBe(1);
+  });
+
+  it('generates a PDF for BPA-DON-2026-00014 in English that fits on exactly one page', async () => {
+    const mockDonation = {
+      id: 'donation-14',
+      referenceNo: 'BPA-DON-2026-00014',
+      donorName: 'John Doe',
+      donorEmail: 'john@example.com',
+      donorCountry: 'USA',
+      donorPhone: '01711000000',
+      isAnonymous: false,
+      organizationName: 'Doe Org',
+      amount: 5000.00,
+      currency: 'BDT',
+      status: 'success',
+      paymentProvider: 'EPS',
+      gatewayTransactionId: 'TXN-12345',
+      paidAt: new Date('2026-06-18T10:00:00.000Z'),
+      createdAt: new Date('2026-06-18T09:50:00.000Z'),
+      message: 'Keep up the great work! Highly appreciated.',
+      campaign: { titleEn: 'Feed the Animals', titleBn: 'প্রাণীদের খাওয়ান' },
+      purpose: { titleEn: 'General Animal Welfare', titleBn: 'সাধারণ প্রাণী কল্যাণ' },
+    };
+
+    mockRepo.findDonationByReference.mockResolvedValue(mockDonation as any);
+
+    // Call PDF generation
+    const buffer = await generateReceiptPdf('BPA-DON-2026-00014', 'en');
+
+    // Confirm buffer is generated and page count is 1
+    expect(buffer).toBeInstanceOf(Buffer);
+    
+    const pdfText = buffer.toString('binary');
+    const matches = pdfText.match(/\/Type\s*\/Page\b/g);
+    const pageCount = matches ? matches.length : 0;
+
+    expect(pageCount).toBe(1);
   });
 });

@@ -213,6 +213,7 @@ export async function generateMembershipPdf(purchaseId: string) {
       format: 'A4',
       margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' },
       printBackground: true,
+      preferCSSPageSize: true,
     }));
 
     await browser.close();

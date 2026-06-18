@@ -10,6 +10,7 @@ jest.mock('../donations.controller', () => ({
   getDonationReceiptHandler: jest.fn(),
   getDonationReceiptPdfHandler: jest.fn(),
   qrRedirectHandler: jest.fn(),
+  getPublishedImpactStoriesHandler: jest.fn(),
   getImpactStoryDetailHandler: jest.fn(),
   getDashboardStatsHandler: jest.fn(),
   exportDonationsCsvHandler: jest.fn(),

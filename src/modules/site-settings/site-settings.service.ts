@@ -31,6 +31,7 @@ export async function getPublicSettings() {
     select: {
       siteName: true,
       siteTagline: true,
+      tagline: true,
       organizationName: true,
       // Contact
       officialPhone: true,
@@ -39,11 +40,16 @@ export async function getPublicSettings() {
       whatsappNumber: true,
       generalEmail: true,
       supportEmail: true,
+      contactEmail: true,
+      vaccinationEmail: true,
+      primaryPhone: true,
+      secondaryPhone: true,
       officeHours: true,
       // Address
       officeAddress: true,
       addressLine1: true,
       addressLine2: true,
+      addressLine: true,
       area: true,
       city: true,
       postalCode: true,
@@ -54,8 +60,13 @@ export async function getPublicSettings() {
       primaryLogoUrl: true,
       secondaryLogoUrl: true,
       faviconUrl: true,
+      websiteUrl: true,
+      legalName: true,
       defaultMetaTitle: true,
       defaultMetaDescription: true,
+      receiptFooterNote: true,
+      donationReceiptTermsBn: true,
+      donationReceiptTermsEn: true,
       // Social
       facebookUrl: true,
       youtubeUrl: true,

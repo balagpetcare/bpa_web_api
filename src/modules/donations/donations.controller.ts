@@ -103,9 +103,11 @@ export async function getDonationReceiptHandler(req: Request, res: Response, nex
 
 export async function getDonationReceiptPdfHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    const buffer = await svc.generateReceiptPdf(req.params.referenceNo);
+    // ?lang=bn or ?lang=en overrides stored donor country for testing/admin use
+    const langParam = typeof req.query.lang === 'string' ? req.query.lang : undefined;
+    const buffer = await svc.generateReceiptPdf(req.params.referenceNo, langParam);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=Donation_Receipt_${req.params.referenceNo}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename=donation-receipt-${req.params.referenceNo}.pdf`);
     res.send(buffer);
   } catch (err) { next(err); }
 }

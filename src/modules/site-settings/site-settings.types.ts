@@ -9,6 +9,7 @@ export const updateSiteSettingsSchema = z.object({
   // ─── Identity ─────────────────────────────────────────────────────
   siteName:                 z.string().min(1).max(200).optional(),
   siteTagline:              z.string().max(300).nullable().optional(),
+  tagline:                  z.string().max(300).nullable().optional(),
   organizationName:         z.string().min(1).max(200).optional(),
   // ─── Contact ──────────────────────────────────────────────────────
   officialPhone:            optionalPhone,
@@ -17,11 +18,16 @@ export const updateSiteSettingsSchema = z.object({
   whatsappNumber:           optionalPhone,
   generalEmail:             optionalEmail,
   supportEmail:             optionalEmail,
+  contactEmail:             optionalEmail,
+  vaccinationEmail:         optionalEmail,
+  primaryPhone:             optionalPhone,
+  secondaryPhone:           optionalPhone,
   officeHours:              z.string().max(500).nullable().optional(),
   // ─── Address ──────────────────────────────────────────────────────
   officeAddress:            optionalText,
   addressLine1:             z.string().max(200).nullable().optional(),
   addressLine2:             z.string().max(200).nullable().optional(),
+  addressLine:              z.string().max(500).nullable().optional(),
   area:                     z.string().max(100).nullable().optional(),
   city:                     z.string().max(100).nullable().optional(),
   postalCode:               z.string().max(20).nullable().optional(),
@@ -32,8 +38,13 @@ export const updateSiteSettingsSchema = z.object({
   primaryLogoUrl:           optionalUrl,
   secondaryLogoUrl:         optionalUrl,
   faviconUrl:               optionalUrl,
+  websiteUrl:               z.string().max(200).nullable().optional(),
+  legalName:                z.string().max(200).nullable().optional(),
   defaultMetaTitle:         z.string().max(200).nullable().optional(),
   defaultMetaDescription:   optionalText,
+  receiptFooterNote:        optionalText,
+  donationReceiptTermsBn:   optionalText,
+  donationReceiptTermsEn:   optionalText,
   // ─── Social ───────────────────────────────────────────────────────
   facebookUrl:              optionalUrl,
   youtubeUrl:               optionalUrl,

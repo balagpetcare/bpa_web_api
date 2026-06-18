@@ -2299,6 +2299,7 @@ model SiteSettings {
   id                       String   @id @default("default")
   siteName                 String   @default("Bangladesh Pet Association") @map("site_name") @db.VarChar(200)
   siteTagline              String?  @map("site_tagline") @db.VarChar(300)
+  tagline                  String?  @map("tagline") @db.VarChar(300)
   organizationName         String   @default("Bangladesh Pet Association") @map("organization_name") @db.VarChar(200)
   // ─── Contact ─────────────────────────────────────────────────────
   officialPhone            String?  @map("official_phone") @db.VarChar(30)
@@ -2307,11 +2308,16 @@ model SiteSettings {
   whatsappNumber           String?  @map("whatsapp_number") @db.VarChar(30)
   generalEmail             String?  @map("general_email") @db.VarChar(200)
   supportEmail             String?  @map("support_email") @db.VarChar(200)
+  contactEmail             String?  @map("contact_email") @db.VarChar(200)
+  vaccinationEmail         String?  @map("vaccination_email") @db.VarChar(200)
+  primaryPhone             String?  @map("primary_phone") @db.VarChar(30)
+  secondaryPhone           String?  @map("secondary_phone") @db.VarChar(30)
   officeHours              String?  @map("office_hours") @db.VarChar(500)
   // ─── Address ─────────────────────────────────────────────────────
   officeAddress            String?  @map("office_address") @db.Text
   addressLine1             String?  @map("address_line1") @db.VarChar(200)
   addressLine2             String?  @map("address_line2") @db.VarChar(200)
+  addressLine              String?  @map("address_line") @db.VarChar(500)
   area                     String?  @map("area") @db.VarChar(100)
   city                     String?  @map("city") @db.VarChar(100)
   postalCode               String?  @map("postal_code") @db.VarChar(20)
@@ -2322,8 +2328,13 @@ model SiteSettings {
   primaryLogoUrl           String?  @map("primary_logo_url") @db.Text
   secondaryLogoUrl         String?  @map("secondary_logo_url") @db.Text
   faviconUrl               String?  @map("favicon_url") @db.Text
+  websiteUrl               String?  @map("website_url") @db.VarChar(200)
+  legalName                String?  @map("legal_name") @db.VarChar(200)
   defaultMetaTitle         String?  @map("default_meta_title") @db.VarChar(200)
   defaultMetaDescription   String?  @map("default_meta_description") @db.Text
+  receiptFooterNote        String?  @map("receipt_footer_note") @db.Text
+  donationReceiptTermsBn   String?  @map("donation_receipt_terms_bn") @db.Text
+  donationReceiptTermsEn   String?  @map("donation_receipt_terms_en") @db.Text
   // ─── Social ──────────────────────────────────────────────────────
   facebookUrl              String?  @map("facebook_url") @db.Text
   youtubeUrl               String?  @map("youtube_url") @db.Text
