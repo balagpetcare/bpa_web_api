@@ -41,6 +41,13 @@ export async function createContribution(data: {
   contributorMobile: string;
   contributorEmail?: string;
   contributorAddress?: string;
+  divisionId?: string;
+  districtId?: string;
+  upazilaId?: string;
+  unionId?: string;
+  cityCorporationId?: string;
+  cityZoneId?: string;
+  wardId?: string;
   amountBdt: number;
   isAnonymous: boolean;
 }) {
@@ -53,6 +60,13 @@ export async function createContribution(data: {
       contributorMobile: data.contributorMobile,
       contributorEmail: data.contributorEmail,
       contributorAddress: data.contributorAddress,
+      divisionId: data.divisionId,
+      districtId: data.districtId,
+      upazilaId: data.upazilaId,
+      unionId: data.unionId,
+      cityCorporationId: data.cityCorporationId,
+      cityZoneId: data.cityZoneId,
+      wardId: data.wardId,
       amountBdt: data.amountBdt,
       isAnonymous: data.isAnonymous,
     },

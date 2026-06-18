@@ -98,6 +98,14 @@ export const initiatePurchaseSchema = z.object({
   memberMobile: z.string().min(5).max(20),
   memberEmail: z.string().email().max(255).optional().or(z.literal('')),
   memberAddress: z.string().max(500).optional().or(z.literal('')),
+  // Location tree FK fields (optional; memberAddress text kept for fallback)
+  divisionId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  districtId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  upazilaId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  unionId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  cityCorporationId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  cityZoneId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  wardId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
   petCount: z.number().int().min(1).max(50).optional(),
   preferredZoneId: z.string().uuid().optional(),
 });

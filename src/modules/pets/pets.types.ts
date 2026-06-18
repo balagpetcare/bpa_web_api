@@ -1,12 +1,25 @@
 import { z } from 'zod';
 import { PetType, PetGender } from '@prisma/client';
 
+const locationFkFields = {
+  // Location tree FK fields — schema already has these columns (added in Phase 1 migration)
+  divisionId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  districtId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  upazilaId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  unionId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  cityCorporationId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  cityZoneId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  wardId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  addressLine: z.string().max(500).optional().nullable(),
+};
+
 export const createPetOwnerSchema = z.object({
   ownerName: z.string().min(1).max(120),
   mobile: z.string().min(7).max(20),
   email: z.string().email().max(255).optional(),
   address: z.string().max(500).optional(),
   userId: z.string().uuid().optional(),
+  ...locationFkFields,
 });
 
 export const updatePetOwnerSchema = z.object({
@@ -14,6 +27,7 @@ export const updatePetOwnerSchema = z.object({
   mobile: z.string().min(7).max(20).optional(),
   email: z.string().email().max(255).optional().nullable(),
   address: z.string().max(500).optional().nullable(),
+  ...locationFkFields,
 });
 
 export const createPetSchema = z.object({

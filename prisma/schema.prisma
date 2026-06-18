@@ -1070,6 +1070,10 @@ model Venue {
   latitude      Decimal? @db.Decimal(9, 6)
   longitude     Decimal? @db.Decimal(9, 6)
   zoneId        String   @map("zone_id") @db.Uuid
+  // Optional location tree references
+  divisionId    String?  @map("division_id") @db.Uuid
+  districtId    String?  @map("district_id") @db.Uuid
+  upazilaId     String?  @map("upazila_id") @db.Uuid
   isActive      Boolean  @default(true) @map("is_active")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
@@ -1636,13 +1640,21 @@ model CareContribution {
   contributorName    String             @map("contributor_name") @db.VarChar(120)
   contributorMobile  String             @map("contributor_mobile") @db.VarChar(20)
   contributorEmail   String?            @map("contributor_email") @db.VarChar(255)
-  contributorAddress String?            @map("contributor_address") @db.Text
-  amountBdt          Decimal            @map("amount_bdt") @db.Decimal(10, 2)
-  currency           String             @default("BDT") @db.VarChar(3)
-  status             ContributionStatus @default(pending_payment)
-  isAnonymous        Boolean            @default(false) @map("is_anonymous")
-  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+  contributorAddress  String?            @map("contributor_address") @db.Text
+  // Location tree FK references (contributorAddress text kept for fallback)
+  divisionId          String?            @map("division_id") @db.Uuid
+  districtId          String?            @map("district_id") @db.Uuid
+  upazilaId           String?            @map("upazila_id") @db.Uuid
+  unionId             String?            @map("union_id") @db.Uuid
+  cityCorporationId   String?            @map("city_corporation_id") @db.Uuid
+  cityZoneId          String?            @map("city_zone_id") @db.Uuid
+  wardId              String?            @map("ward_id") @db.Uuid
+  amountBdt           Decimal            @map("amount_bdt") @db.Decimal(10, 2)
+  currency            String             @default("BDT") @db.VarChar(3)
+  status              ContributionStatus @default(pending_payment)
+  isAnonymous         Boolean            @default(false) @map("is_anonymous")
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz
 
   plan    ContributionPlan @relation(fields: [planId], references: [id])
   zone    CommunityZone    @relation(fields: [zoneId], references: [id])
@@ -2156,10 +2168,18 @@ model CommunityMembershipPurchase {
   memberName      String                   @map("member_name") @db.VarChar(120)
   memberMobile    String                   @map("member_mobile") @db.VarChar(20)
   memberEmail     String?                  @map("member_email") @db.VarChar(255)
-  memberAddress   String?                  @map("member_address") @db.Text
-  amountBdt       Decimal                  @map("amount_bdt") @db.Decimal(10, 2)
-  currency        String                   @default("BDT") @db.VarChar(3)
-  status          MembershipPurchaseStatus @default(pending_payment)
+  memberAddress     String?                  @map("member_address") @db.Text
+  // Location tree FK references (memberAddress text kept for fallback)
+  divisionId        String?                  @map("division_id") @db.Uuid
+  districtId        String?                  @map("district_id") @db.Uuid
+  upazilaId         String?                  @map("upazila_id") @db.Uuid
+  unionId           String?                  @map("union_id") @db.Uuid
+  cityCorporationId String?                  @map("city_corporation_id") @db.Uuid
+  cityZoneId        String?                  @map("city_zone_id") @db.Uuid
+  wardId            String?                  @map("ward_id") @db.Uuid
+  amountBdt         Decimal                  @map("amount_bdt") @db.Decimal(10, 2)
+  currency          String                   @default("BDT") @db.VarChar(3)
+  status            MembershipPurchaseStatus @default(pending_payment)
   petLimit        Int                      @default(3) @map("pet_limit")
   startsAt        DateTime?                @map("starts_at") @db.Date
   expiresAt       DateTime?                @map("expires_at") @db.Date

@@ -10,6 +10,14 @@ export const initiateContributionSchema = z.object({
   contributorMobile: bdMobile,
   contributorEmail: z.string().email().optional(),
   contributorAddress: z.string().max(500).optional(),
+  // Location tree FK fields (optional; contributorAddress kept for fallback)
+  divisionId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  districtId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  upazilaId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  unionId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  cityCorporationId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  cityZoneId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
+  wardId: z.string().uuid().optional().or(z.literal('')).transform((v) => v || undefined),
   isAnonymous: z.boolean().default(false),
 });
 
