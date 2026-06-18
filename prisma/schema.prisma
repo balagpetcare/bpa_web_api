@@ -227,6 +227,19 @@ enum PetCensusStatus {
   archived
 }
 
+enum LocationType {
+  DIVISION
+  DISTRICT
+  UPAZILA
+  THANA
+  UNION
+  POURASHAVA
+  CITY_CORPORATION
+  CITY_ZONE
+  WARD
+  AREA
+}
+
 enum TransparencyReportStatus {
   draft
   published
@@ -259,6 +272,16 @@ model User {
   createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt           DateTime?  @map("deleted_at") @db.Timestamptz
+
+  // Location tree references (nullable, for address/profile)
+  divisionId        String?  @map("division_id") @db.Uuid
+  districtId        String?  @map("district_id") @db.Uuid
+  upazilaId         String?  @map("upazila_id") @db.Uuid
+  unionId           String?  @map("union_id") @db.Uuid
+  cityCorporationId String?  @map("city_corporation_id") @db.Uuid
+  cityZoneId        String?  @map("city_zone_id") @db.Uuid
+  wardId            String?  @map("ward_id") @db.Uuid
+  addressLine       String?  @map("address_line") @db.Text
 
   userRoles              UserRole[]
   authAccounts           AuthAccount[]
@@ -1060,6 +1083,37 @@ model Venue {
   @@map("venues")
 }
 
+// ─── Unified Location Tree ─────────────────────────────────────────
+// Replaces flat Country→Division→District→CityCorporation hierarchy with
+// a self-referential tree supporting all BD administrative levels + wards.
+
+model Location {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId   String?      @map("parent_id") @db.Uuid
+  type       LocationType
+  nameEn     String       @map("name_en") @db.VarChar(255)
+  nameBn     String?      @map("name_bn") @db.VarChar(255)
+  slug       String       @db.VarChar(255)
+  code       String?      @db.VarChar(50)
+  source     String?      @db.VarChar(100)
+  sourceId   String?      @map("source_id") @db.VarChar(100)
+  lat        Decimal?     @db.Decimal(10, 7)
+  lon        Decimal?     @db.Decimal(10, 7)
+  isActive   Boolean      @default(true) @map("is_active")
+  isVerified Boolean      @default(true) @map("is_verified")
+  sortOrder  Int          @default(0) @map("sort_order")
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  parent   Location?  @relation("LocationTree", fields: [parentId], references: [id])
+  children Location[] @relation("LocationTree")
+
+  @@index([type])
+  @@index([parentId])
+  @@index([source, sourceId])
+  @@map("location_nodes")
+}
+
 // ─── Vaccine Catalog ──────────────────────────────────────────────
 
 model VaccineCatalog {
@@ -1106,6 +1160,16 @@ model PetOwner {
   isGuest   Boolean  @default(false) @map("is_guest")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Location tree references (nullable, fallback kept in address field)
+  divisionId        String?  @map("division_id") @db.Uuid
+  districtId        String?  @map("district_id") @db.Uuid
+  upazilaId         String?  @map("upazila_id") @db.Uuid
+  unionId           String?  @map("union_id") @db.Uuid
+  cityCorporationId String?  @map("city_corporation_id") @db.Uuid
+  cityZoneId        String?  @map("city_zone_id") @db.Uuid
+  wardId            String?  @map("ward_id") @db.Uuid
+  addressLine       String?  @map("address_line") @db.Text
 
   user          User?                  @relation(fields: [userId], references: [id])
   pets          Pet[]

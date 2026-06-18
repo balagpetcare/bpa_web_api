@@ -27,6 +27,7 @@ import publicBookingsRouter from './modules/payments/public-bookings.router';
 import smsLogsRouter from './modules/sms-logs/sms-logs.router';
 import emailLogsRouter from './modules/email-logs/email-logs.router';
 import locationsRouter from './modules/locations/locations.router';
+import publicLocationsRouter, { adminLocationTreeRouter } from './modules/locations/location-tree.router';
 import vaccineCatalogRouter from './modules/vaccine-catalog/vaccine-catalog.router';
 import petsRouter from './modules/pets/pets.router';
 import doctorsRouter from './modules/doctors/doctors.router';
@@ -131,6 +132,8 @@ app.use(`${v1}/admin/email-logs`, emailLogsRouter);
 // ─── Campaign Management (Phase 0 + 1) ──────────────────────────
 app.use(`${v1}/admin/locations`, locationsRouter);
 app.use(`${v1}/locations`, locationsRouter);
+app.use(`${v1}/public/locations`, publicLocationsRouter);
+app.use(`${v1}/admin/location-tree`, adminLocationTreeRouter);
 app.use(`${v1}/admin/vaccine-catalog`, vaccineCatalogRouter);
 app.use(`${v1}/admin/pets`, petsRouter);
 app.use(`${v1}/admin/doctors`, doctorsRouter);

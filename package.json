@@ -14,6 +14,7 @@
     "seed:root-admin": "ts-node -r dotenv/config prisma/seed-root-admin.ts",
     "seed:hero": "ts-node -r dotenv/config prisma/seed-hero.ts",
     "seed:donations": "ts-node -r dotenv/config prisma/seed-donations.ts",
+    "seed:locations": "ts-node -r dotenv/config scripts/location-data/seed-locations.ts",
     "db:studio": "prisma studio",
     "storage:test": "ts-node -r dotenv/config scripts/test_storage.ts",
     "typecheck": "tsc --noEmit",
