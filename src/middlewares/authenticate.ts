@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../utils/jwt';
 import { AppError } from '../utils/AppError';
 import { ERROR_CODES } from '../config/constants';
+import { config } from '../config';
 
 export function authenticate(
   req: Request,
@@ -10,11 +11,18 @@ export function authenticate(
 ): void {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw AppError.unauthorized('No token provided', ERROR_CODES.UNAUTHORIZED);
+    let token: string | undefined;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.slice(7);
+    } else if (req.cookies?.[config.AUTH_COOKIE_NAME]) {
+      // Cookie-based auth for web frontend (httpOnly cookie set on login)
+      token = req.cookies[config.AUTH_COOKIE_NAME] as string;
     }
 
-    const token = authHeader.slice(7);
+    if (!token) {
+      throw AppError.unauthorized('No token provided', ERROR_CODES.UNAUTHORIZED);
+    }
     const payload = verifyAccessToken(token);
     req.user = payload;
     next();
