@@ -842,6 +842,76 @@ async function main(): Promise<void> {
 
   console.log(`Roadmap items seeded: ${roadmapItems.length}`);
 
+  // ─── Donation Impact Stories ────────────────────────────────────
+
+  console.log('Seeding donation impact stories...');
+
+  const impactStories = [
+    {
+      titleEn: '200 Dogs Vaccinated in Uttara',
+      titleBn: 'উত্তরায় ২০০ কুকুরকে টিকা প্রদান',
+      slug: '200-dogs-vaccinated-uttara',
+      storyType: 'VACCINATION' as const,
+      location: 'Uttara, Dhaka',
+      animalType: 'Dog',
+      shortDescriptionEn: 'Our team vaccinated 200 street dogs in Uttara against rabies, protecting both animals and the community.',
+      shortDescriptionBn: 'আমাদের দল উত্তরায় ২০০টি রাস্তার কুকুরকে জলাতঙ্কের বিরুদ্ধে টিকা দিয়েছে, যা প্রাণী ও সম্প্রদায় উভয়কেই রক্ষা করেছে।',
+      fullStoryEn: 'In a major outreach effort this March, BPA\'s mobile veterinary team set up vaccination stations across 5 locations in Uttara. Over two weeks, we vaccinated 200 street dogs against rabies and provided basic health checkups. The campaign was supported by local volunteers who helped identify dog populations and coordinate with community members. Each vaccinated dog was marked for identification, and owners in the area received educational materials about rabies prevention and responsible pet care. This initiative significantly reduces the risk of rabies transmission in the Uttara area and brings us closer to our goal of a rabies-free Dhaka.',
+      fullStoryBn: 'এই মার্চ মাসে একটি বড় আউটরিচ উদ্যোগে, বিপিএর মোবাইল ভেটেরিনারি টিম উত্তরার ৫টি স্থানে টিকাদান কেন্দ্র স্থাপন করে। দুই সপ্তাহ ধরে, আমরা ২০০টি রাস্তার কুকুরকে জলাতঙ্কের বিরুদ্ধে টিকা দিয়েছি এবং প্রাথমিক স্বাস্থ্য পরীক্ষা করেছি। এই প্রচারণা স্থানীয় স্বেচ্ছাসেবকদের দ্বারা সমর্থিত হয়েছিল যারা কুকুরের জনসংখ্যা চিহ্নিত করতে এবং সম্প্রদায়ের সদস্যদের সাথে সমন্বয় করতে সাহায্য করেছিল। প্রতিটি টিকাপ্রাপ্ত কুকুরকে শনাক্তকরণের জন্য চিহ্নিত করা হয়েছিল এবং এলাকার মালিকরা জলাতঙ্ক প্রতিরোধ ও দায়িত্বশীল পোষা প্রাণীর যত্ন সম্পর্কে শিক্ষামূলক উপকরণ পেয়েছেন। এই উদ্যোগ উত্তরাঞ্চলে জলাতঙ্ক সংক্রমণের ঝুঁকি উল্লেখযোগ্যভাবে হ্রাস করে এবং আমাদের জলাতঙ্কমুক্ত ঢাকা গড়ার লক্ষ্যের কাছাকাছি নিয়ে আসে।',
+      status: 'PUBLISHED',
+      showOnDonationPage: true,
+      sortOrder: 1,
+      isFeatured: true,
+      storyDate: new Date('2026-03-15'),
+      costUsed: 45000,
+    },
+    {
+      titleEn: 'Injured Cat Rescued and Treated',
+      titleBn: 'আহত বিড়াল উদ্ধার ও চিকিৎসা',
+      slug: 'injured-cat-rescued-treated',
+      storyType: 'RESCUE' as const,
+      location: 'Mirpur, Dhaka',
+      animalType: 'Cat',
+      shortDescriptionEn: 'A severely injured cat found on the streets of Mirpur received emergency surgery and made a full recovery.',
+      shortDescriptionBn: 'মিরপুরের রাস্তায় গুরুতর আহত অবস্থায় পাওয়া একটি বিড়াল জরুরি অস্ত্রোপচার পেয়ে সম্পূর্ণ সুস্থ হয়ে উঠেছে।',
+      fullStoryEn: 'A Good Samaritan found a young cat with a severe leg injury on the streets of Mirpur and immediately contacted BPA. Our rescue team rushed to the location and brought the cat to our partner veterinary clinic. The cat, whom we named "Mishu," had a fractured leg that required immediate surgery. Thanks to generous donations from our supporters, we were able to cover the full cost of the surgery, medication, and rehabilitation. After 6 weeks of careful treatment and love from our foster volunteers, Mishu made a full recovery. She has since been adopted by a loving family in Banani and is thriving in her forever home. Stories like Mishu\'s remind us why every donation matters — it literally saves lives.',
+      fullStoryBn: 'একজন সদয় ব্যক্তি মিরপুরের রাস্তায় গুরুতর পায়ের আঘাতসহ একটি তরুণ বিড়াল খুঁজে পেয়ে অবিলম্বে বিপিএতে যোগাযোগ করেন। আমাদের উদ্ধার দল ঘটনাস্থলে ছুটে যায় এবং বিড়ালটিকে আমাদের পার্টনার ভেটেরিনারি ক্লিনিকে নিয়ে আসে। বিড়ালটি, যার নাম আমরা রেখেছিলাম "মিশু," তার পা ভেঙে গিয়েছিল যার জরুরি অস্ত্রোপচারের প্রয়োজন ছিল। আমাদের সমর্থকদের উদার দানের জন্য, আমরা অস্ত্রোপচার, ওষুধ ও পুনর্বাসনের সম্পূর্ণ ব্যয় বহন করতে পেরেছি। আমাদের ফস্টার স্বেচ্ছাসেবকদের যত্নশীল চিকিৎসা ও ভালোবাসার ৬ সপ্তাহ পর, মিশু সম্পূর্ণ সুস্থ হয়ে ওঠে। তাকে পরবর্তীতে বনানীর একটি প্রেমময় পরিবার দত্তক নিয়েছে এবং তার চিরকালের বাড়িতে সে ভালো আছে। মিশুর মতো গল্পগুলো আমাদের মনে করিয়ে দেয় কেন প্রতিটি দান গুরুত্বপূর্ণ — এটি আক্ষরিক অর্থেই জীবন বাঁচায়।',
+      status: 'PUBLISHED',
+      showOnDonationPage: true,
+      sortOrder: 2,
+      isFeatured: true,
+      storyDate: new Date('2026-02-20'),
+      costUsed: 12000,
+    },
+    {
+      titleEn: 'Street Puppies Given Second Chance',
+      titleBn: 'রাস্তার কুকুরছানাদের দ্বিতীয় সুযোগ',
+      slug: 'street-puppies-second-chance',
+      storyType: 'RESCUE' as const,
+      location: 'Mohammadpur, Dhaka',
+      animalType: 'Dog',
+      shortDescriptionEn: 'A litter of 6 newborn puppies abandoned on the street were rescued, nursed to health, and all found loving homes.',
+      shortDescriptionBn: 'রাস্তায় পরিত্যক্ত ৬টি নবজাতক কুকুরছানাকে উদ্ধার করে, সুস্থ করে তোলা হয়েছে এবং সবাই প্রেমময় পরিবার পেয়েছে।',
+      fullStoryEn: 'In February, BPA received a distress call about a litter of 6 newborn puppies found abandoned in a cardboard box near a construction site in Mohammadpur. They were only days old, dehydrated, and in critical condition. Our rescue team immediately brought them to our care facility where they received round-the-clock attention. For the first few weeks, our volunteers bottle-fed the puppies every 2 hours. As they grew stronger, we provided all necessary vaccinations, deworming, and health checkups. All 6 puppies were spayed/neutered before adoption to prevent future street animal overpopulation. Through our adoption drive and social media campaign, we found responsible, loving homes for all 6 puppies. They are now healthy, happy, and part of caring families across Dhaka.',
+      fullStoryBn: 'ফেব্রুয়ারিতে, বিপিএ মোহাম্মদপুরের একটি নির্মাণ সাইটের কাছে একটি কার্ডবোর্ডের বাক্সে পরিত্যক্ত ৬টি নবজাতক কুকুরছানার বিষয়ে একটি জরুরি কল পায়। তারা মাত্র কয়েক দিনের ছিল, ডিহাইড্রেটেড এবং সংকটজনক অবস্থায় ছিল। আমাদের উদ্ধার দল অবিলম্বে তাদের আমাদের পরিচর্যা কেন্দ্রে নিয়ে আসে যেখানে তারা ২৪ ঘন্টা যত্ন পেয়েছে। প্রথম কয়েক সপ্তাহে, আমাদের স্বেচ্ছাসেবকরা প্রতি ২ ঘন্টায় বোতলে কুকুরছানাদের খাওয়াতেন। তারা শক্তিশালী হওয়ার সাথে সাথে, আমরা সমস্ত প্রয়োজনীয় টিকা, কৃমিনাশক এবং স্বাস্থ্য পরীক্ষা প্রদান করেছি। ভবিষ্যতে রাস্তার প্রাণীর অতিরিক্ত জনসংখ্যা রোধ করতে দত্তক দেওয়ার আগে সমস্ত ৬টি কুকুরছানাকে স্পে/নিউটার করা হয়েছিল। আমাদের দত্তক প্রচারণা এবং সোশ্যাল মিডিয়া ক্যাম্পেইনের মাধ্যমে, আমরা সব ৬টি কুকুরছানার জন্য দায়িত্বশীল, প্রেমময় পরিবার খুঁজে পেয়েছি। তারা এখন সুস্থ, খুশি এবং ঢাকা জুড়ে যত্নশীল পরিবারের অংশ।',
+      status: 'PUBLISHED',
+      showOnDonationPage: true,
+      sortOrder: 3,
+      isFeatured: false,
+      storyDate: new Date('2026-01-10'),
+      costUsed: 28000,
+    },
+  ];
+
+  for (const story of impactStories) {
+    const existing = await prisma.donationImpactStory.findUnique({ where: { slug: story.slug } });
+    if (!existing) {
+      await prisma.donationImpactStory.create({ data: story as any });
+    }
+  }
+
+  console.log(`Donation impact stories seeded: ${impactStories.length}`);
+
   // ─── Site Settings (Singleton) ────────────────────────────────────
 
   console.log('Seeding site settings...');

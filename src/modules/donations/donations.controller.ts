@@ -3,6 +3,7 @@ import { sendSuccess, sendCreated, sendNoContent } from '../../utils/response';
 import * as svc from './donations.service';
 import * as repo from './donations.repository';
 import { AppError } from '../../utils/AppError';
+import { createImpactStorySchema, updateImpactStorySchema } from './donations.validation';
 
 // ─── Public Handlers ─────────────────────────────────────────────
 
@@ -31,6 +32,13 @@ export async function getCampaignDetailHandler(req: Request, res: Response, next
   try {
     const data = await repo.findCampaignBySlug(req.params.slug);
     if (!data) { res.status(404).json({ success: false, message: 'Campaign not found' }); return; }
+    sendSuccess(res, data);
+  } catch (err) { next(err); }
+}
+
+export async function getPublishedImpactStoriesHandler(_req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await repo.listImpactStories({ status: 'PUBLISHED' });
     sendSuccess(res, data);
   } catch (err) { next(err); }
 }
@@ -209,10 +217,16 @@ export async function listImpactStoriesHandler(_req: Request, res: Response, nex
   try { sendSuccess(res, await repo.listImpactStories()); } catch (err) { next(err); }
 }
 export async function createImpactStoryHandler(req: Request, res: Response, next: NextFunction) {
-  try { sendCreated(res, await repo.createImpactStory(req.body)); } catch (err) { next(err); }
+  try {
+    const parsed = createImpactStorySchema.parse(req.body);
+    sendCreated(res, await repo.createImpactStory(parsed as any));
+  } catch (err) { next(err); }
 }
 export async function updateImpactStoryHandler(req: Request, res: Response, next: NextFunction) {
-  try { sendSuccess(res, await repo.updateImpactStory(req.params.id, req.body)); } catch (err) { next(err); }
+  try {
+    const parsed = updateImpactStorySchema.parse(req.body);
+    sendSuccess(res, await repo.updateImpactStory(req.params.id, parsed as any));
+  } catch (err) { next(err); }
 }
 export async function deleteImpactStoryHandler(req: Request, res: Response, next: NextFunction) {
   try { await repo.deleteImpactStory(req.params.id); sendNoContent(res); } catch (err) { next(err); }

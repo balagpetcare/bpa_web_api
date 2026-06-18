@@ -21,6 +21,7 @@ publicRouter.get('/receipt/:referenceNo', ctrl.getDonationReceiptHandler);
 publicRouter.get('/receipt/:referenceNo/pdf', ctrl.getDonationReceiptPdfHandler);
 publicRouter.get('/qr/:slug/redirect', ctrl.qrRedirectHandler);
 
+publicRouter.get('/impact-stories', ctrl.getPublishedImpactStoriesHandler);
 publicRouter.get('/impact-stories/:slug', ctrl.getImpactStoryDetailHandler);
 
 // ─── Admin Routes ────────────────────────────────────────────────
