@@ -52,6 +52,8 @@ export async function getImpactStoryDetailHandler(req: Request, res: Response, n
   } catch (err) { next(err); }
 }
 
+const EPS_ERROR_CODES = new Set(['EPS_UNAVAILABLE', 'EPS_CONFIG_MISSING', 'EPS_NOT_ENABLED']);
+
 export async function initializeDonationHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await svc.initializeDonation({
@@ -62,7 +64,7 @@ export async function initializeDonationHandler(req: Request, res: Response, nex
     });
     sendCreated(res, result);
   } catch (err) {
-    if (err instanceof AppError && err.code === 'EPS_UNAVAILABLE') {
+    if (err instanceof AppError && EPS_ERROR_CODES.has(err.code)) {
       const donationReferenceNo =
         Array.isArray(err.details) &&
         typeof err.details[0] === 'object' &&
@@ -77,7 +79,7 @@ export async function initializeDonationHandler(req: Request, res: Response, nex
           code: err.code,
           message: err.message,
         },
-        donationReferenceNo,
+        ...(donationReferenceNo ? { donationReferenceNo } : {}),
       });
       return;
     }

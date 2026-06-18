@@ -37,9 +37,30 @@ export function getEPS(): EPS {
   return _instance;
 }
 
+export function getEPSMissingCredentials(): string[] {
+  const missing: string[] = [];
+  if (!config.EPS_USERNAME) missing.push('EPS_USERNAME');
+  if (!config.EPS_PASSWORD) missing.push('EPS_PASSWORD');
+  if (!config.EPS_HASH_KEY) missing.push('EPS_HASH_KEY');
+  if (!config.EPS_MERCHANT_ID) missing.push('EPS_MERCHANT_ID');
+  if (!config.EPS_STORE_ID) missing.push('EPS_STORE_ID');
+  return missing;
+}
+
+/** Returns true when either naming convention activates EPS for donations. */
+export function isDonationEPSMode(): boolean {
+  // New convention: PAYMENT_PROVIDER=EPS + DONATION_PAYMENT_MODE=GATEWAY
+  if (config.PAYMENT_PROVIDER === 'EPS' && config.DONATION_PAYMENT_MODE === 'GATEWAY') return true;
+  // Legacy convention: EPS_ENABLED=true + PAYMENT_CHANNEL_MODE=EPS
+  if (config.EPS_ENABLED === 'true' && config.PAYMENT_CHANNEL_MODE === 'EPS') return true;
+  return false;
+}
+
 export function isEPSConfigured(): boolean {
-  if (config.PAYMENT_CHANNEL_MODE !== 'EPS') return false;
-  if (config.EPS_ENABLED !== 'true') return false;
+  // Support both naming conventions
+  const channelOk = config.PAYMENT_PROVIDER === 'EPS' || config.PAYMENT_CHANNEL_MODE === 'EPS';
+  const enabledOk = config.EPS_ENABLED === 'true' || config.PAYMENT_PROVIDER === 'EPS';
+  if (!channelOk || !enabledOk) return false;
   return !!(
     config.EPS_USERNAME &&
     config.EPS_PASSWORD &&

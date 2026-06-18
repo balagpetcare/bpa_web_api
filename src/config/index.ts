@@ -52,6 +52,18 @@ const envSchema = z.object({
   // PAYMENT_CHANNEL_MODE=MANUAL  → skip gateway, return booking for manual payment/support
   PAYMENT_CHANNEL_MODE: z.enum(['EPS', 'MANUAL']).default('MANUAL'),
 
+  // Donation-specific payment routing (alternate naming convention — both styles supported)
+  // PAYMENT_PROVIDER=EPS + DONATION_PAYMENT_MODE=GATEWAY → use EPS for donations
+  // PAYMENT_PROVIDER=MANUAL or unset                     → manual / not configured
+  PAYMENT_PROVIDER: z.enum(['EPS', 'MANUAL']).optional(),
+  DONATION_PAYMENT_MODE: z.enum(['GATEWAY', 'MANUAL', 'MOCK']).optional(),
+
+  // Informational — code builds callback URLs from BACKEND_URL automatically; these are not read.
+  EPS_BASE_URL: z.string().optional(),
+  EPS_SUCCESS_URL: z.string().optional(),
+  EPS_FAIL_URL: z.string().optional(),
+  EPS_CANCEL_URL: z.string().optional(),
+
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
   BACKEND_URL: z.string().url().default('http://localhost:4000'),
   ADMIN_BASE_URL: z.string().url().default('http://localhost:3001'),

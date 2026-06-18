@@ -1,6 +1,9 @@
 import { AppError } from '../../utils/AppError';
 import * as repo from './donations.repository';
-import { initializeEpsPayment, generateMerchantTxnId, isEpsMockModeEnabled } from '../../services/eps.service';
+import {
+  initializeEpsPayment, generateMerchantTxnId, isEpsMockModeEnabled,
+  isDonationEPSMode, getEPSMissingCredentials,
+} from '../../services/eps.service';
 import { prisma } from '../../database/prisma';
 import { config } from '../../config';
 import QRCode from 'qrcode';
@@ -71,6 +74,40 @@ export async function initializeDonation(params: {
   userAgent?: string;
 }) {
   if (params.amount < 50) throw AppError.badRequest('Minimum donation amount is BDT 50');
+
+  // Pre-flight: verify payment gateway is configured before touching the DB
+  if (!isEpsMockModeEnabled()) {
+    const missingCreds = getEPSMissingCredentials();
+    const epsDebugCtx = {
+      NODE_ENV: config.NODE_ENV,
+      DONATION_PAYMENT_MODE: config.DONATION_PAYMENT_MODE ?? '(not set)',
+      PAYMENT_PROVIDER: config.PAYMENT_PROVIDER ?? '(not set)',
+      EPS_ENABLED: config.EPS_ENABLED,
+      PAYMENT_CHANNEL_MODE: config.PAYMENT_CHANNEL_MODE,
+      EPS_BASE_URL_exists: !!(process.env.EPS_BASE_URL),
+      EPS_MERCHANT_ID_exists: !!config.EPS_MERCHANT_ID,
+      EPS_STORE_ID_exists: !!config.EPS_STORE_ID,
+      EPS_USERNAME_exists: !!config.EPS_USERNAME,
+      EPS_PASSWORD_exists: !!config.EPS_PASSWORD,
+      EPS_HASH_KEY_exists: !!config.EPS_HASH_KEY,
+    };
+    if (missingCreds.length) {
+      console.error('[Donations] EPS credentials missing:', { ...epsDebugCtx, missingCreds });
+      throw new AppError(
+        503, 'EPS_CONFIG_MISSING',
+        `Payment gateway credentials not configured. Missing env vars: ${missingCreds.join(', ')}`,
+      );
+    }
+    if (!isDonationEPSMode()) {
+      console.error('[Donations] EPS gateway not enabled for donations:', epsDebugCtx);
+      throw new AppError(
+        503, 'EPS_NOT_ENABLED',
+        'Payment gateway is not enabled for donations. ' +
+        'Set PAYMENT_PROVIDER=EPS and DONATION_PAYMENT_MODE=GATEWAY ' +
+        '(or EPS_ENABLED=true and PAYMENT_CHANNEL_MODE=EPS).',
+      );
+    }
+  }
 
   let resolvedPurposeId = params.purposeId;
   if (params.purposeSlug && !resolvedPurposeId) {
@@ -201,12 +238,27 @@ export async function initializeDonation(params: {
       paymentUrl: String(gatewayPayload.RedirectURL || ''),
     };
   } catch (error) {
+    const epsErrMsg = error instanceof Error ? error.message : String(error);
+    console.error('[Donations] EPS initializePayment failed:', {
+      NODE_ENV: config.NODE_ENV,
+      DONATION_PAYMENT_MODE: config.DONATION_PAYMENT_MODE ?? '(not set)',
+      PAYMENT_PROVIDER: config.PAYMENT_PROVIDER ?? '(not set)',
+      EPS_ENABLED: config.EPS_ENABLED,
+      PAYMENT_CHANNEL_MODE: config.PAYMENT_CHANNEL_MODE,
+      EPS_BASE_URL_exists: !!(process.env.EPS_BASE_URL),
+      EPS_MERCHANT_ID_exists: !!config.EPS_MERCHANT_ID,
+      EPS_STORE_ID_exists: !!config.EPS_STORE_ID,
+      EPS_USERNAME_exists: !!config.EPS_USERNAME,
+      EPS_PASSWORD_exists: !!config.EPS_PASSWORD,
+      EPS_HASH_KEY_exists: !!config.EPS_HASH_KEY,
+      epsError: epsErrMsg,
+    });
     await Promise.all([
       repo.updatePaymentForDonation(payment.id, {
         status: 'failed',
         payload: {
           code: 'EPS_UNAVAILABLE',
-          message: error instanceof Error ? error.message : 'Payment gateway initialization failed',
+          message: epsErrMsg,
           failedAt: new Date().toISOString(),
         },
       }),
