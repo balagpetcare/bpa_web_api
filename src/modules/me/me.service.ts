@@ -44,6 +44,55 @@ function frontendUrl(path: string): string {
   return `${config.FRONTEND_URL}${path}`;
 }
 
+// ─── Profile update ─────────────────────────────────────────────────────────
+
+function normalizePhone(phone: string): string {
+  let cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
+  if (!cleaned.startsWith('880')) cleaned = '880' + cleaned;
+  return cleaned;
+}
+
+export async function updateProfile(
+  userId: string,
+  dto: { name?: string; phone?: string },
+): Promise<{ id: string; name: string; email: string | null; phone: string | null; avatarUrl: string | null; profileCompletion: number }> {
+  const user = await prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
+  if (!user) throw AppError.notFound('User');
+
+  const data: { name?: string; phone?: string | null } = {};
+
+  if (dto.name?.trim()) {
+    data.name = dto.name.trim();
+  }
+
+  if (dto.phone !== undefined) {
+    if (dto.phone === '' || dto.phone === null) {
+      data.phone = null;
+    } else {
+      const normalized = normalizePhone(dto.phone);
+      if (normalized !== user.phone) {
+        const conflict = await prisma.user.findFirst({
+          where: { phone: normalized, id: { not: userId }, deletedAt: null },
+        });
+        if (conflict) throw AppError.badRequest('This phone number is already in use.');
+        data.phone = normalized;
+      }
+    }
+  }
+
+  const updated = await prisma.user.update({ where: { id: userId }, data });
+
+  return {
+    id: updated.id,
+    name: updated.name,
+    email: updated.email,
+    phone: updated.phone,
+    avatarUrl: updated.avatarUrl,
+    profileCompletion: computeProfileCompletion(updated),
+  };
+}
+
 // ─── Main aggregation ────────────────────────────────────────────────────────
 
 export async function getDashboardSummary(userId: string): Promise<DashboardSummaryResponse> {

@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { authenticate } from '../../middlewares/authenticate';
-import { dashboardHandler } from './me.controller';
+import { dashboardHandler, updateProfileHandler } from './me.controller';
 
 const router = Router();
 
 router.use(authenticate);
 
 // GET /api/v1/me/dashboard
-// Returns the authenticated user's personal impact portal data.
 router.get('/dashboard', dashboardHandler);
+
+// PATCH /api/v1/me/profile
+router.patch('/profile', updateProfileHandler);
 
 export default router;

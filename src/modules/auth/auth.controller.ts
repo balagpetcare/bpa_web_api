@@ -170,6 +170,19 @@ export async function resetPasswordHandler(
   }
 }
 
+export async function changePasswordHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await authService.changePassword(req.user!.sub, req.body);
+    sendSuccess(res, { message: 'Password changed successfully.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 function setAuthCookies(res: Response, result: any) {
   res.cookie(config.AUTH_COOKIE_NAME, result.accessToken, COOKIE_OPTIONS);
   res.cookie(config.AUTH_COOKIE_NAME + '_refresh', result.refreshToken, COOKIE_OPTIONS);
