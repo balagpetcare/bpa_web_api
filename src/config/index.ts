@@ -35,7 +35,7 @@ const envSchema = z.object({
   EPS_ENABLED: z.enum(['true', 'false']).default('false'),
   // EPS_ENV=demo        → sandbox endpoints (sandbox-pgapi.eps.com.bd)
   // EPS_ENV=production  → live endpoints    (pgapi.eps.com.bd)
-  EPS_ENV: z.enum(['demo', 'production']).default('demo'),
+  EPS_ENV: z.enum(['sandbox', 'demo', 'production']).default('sandbox'),
   // Legacy alias kept for backward-compat; EPS_ENV takes precedence when both are set
   EPS_SANDBOX: z.enum(['true', 'false']).default('true'),
 
@@ -43,8 +43,10 @@ const envSchema = z.object({
   EPS_USERNAME: z.string().optional(),
   EPS_PASSWORD: z.string().optional(),
   EPS_HASH_KEY: z.string().optional(),
+  EPS_SECRET_KEY: z.string().optional(),
   EPS_MERCHANT_ID: z.string().optional(),
   EPS_STORE_ID: z.string().optional(),
+  EPS_APP_KEY: z.string().optional(),
   EPS_MOCK_MODE: z.enum(['true', 'false']).default('false'),
 
   // Payment channel routing
@@ -58,11 +60,18 @@ const envSchema = z.object({
   PAYMENT_PROVIDER: z.enum(['EPS', 'MANUAL']).optional(),
   DONATION_PAYMENT_MODE: z.enum(['GATEWAY', 'MANUAL', 'MOCK']).optional(),
 
-  // Informational — code builds callback URLs from BACKEND_URL automatically; these are not read.
-  EPS_BASE_URL: z.string().optional(),
   EPS_SUCCESS_URL: z.string().optional(),
+  // EPS gateway base URL — overrides the URL embedded in the eps-gateway-nodejs SDK.
+  // Use this when the SDK's hardcoded domain (sandbox-pgapi.eps.com.bd) differs from
+  // the real sandbox domain (sandboxpgapi.eps.com.bd). No trailing slash.
+  EPS_BASE_URL: z.string().optional(),
+  EPS_API_BASE_URL: z.string().optional(), // alternate name accepted by some setups
+  // Informational only — code builds callback URLs from BACKEND_URL automatically.
+  EPS_SUCCESS_URL_OLD: z.string().optional(), // rename to avoid collision if needed, or keep original
   EPS_FAIL_URL: z.string().optional(),
   EPS_CANCEL_URL: z.string().optional(),
+  EPS_IPN_URL: z.string().optional(),
+  EPS_ALLOWED_REDIRECT_HOSTS: z.string().default(''),
 
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
   BACKEND_URL: z.string().url().default('http://localhost:4000'),
@@ -146,7 +155,11 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const config = parsed.data;
+export const config = {
+  ...parsed.data,
+  EPS_HASH_KEY: parsed.data.EPS_HASH_KEY || parsed.data.EPS_SECRET_KEY,
+  EPS_STORE_ID: parsed.data.EPS_STORE_ID || parsed.data.EPS_APP_KEY,
+};
 
 export const corsOrigins = config.CORS_ORIGINS.split(',').map((o) => o.trim());
 

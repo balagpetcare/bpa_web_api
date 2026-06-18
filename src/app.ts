@@ -56,6 +56,12 @@ import { siteSettingsAdminRouter, siteSettingsPublicRouter } from './modules/sit
 import { communityMembershipAdminRouter, communityMembershipPublicRouter } from './modules/community-membership/community-membership.router';
 import { donationsPublicRouter, donationsAdminRouter } from './modules/donations/donations.router';
 import meRouter from './modules/me/me.router';
+import {
+  getMembershipStatusHandler,
+  downloadReceiptPdfHandler,
+  downloadCardPdfHandler,
+} from './modules/community-membership/community-membership.controller';
+import { publicReadLimiter } from './middlewares/rateLimiter';
 
 const app = express();
 
@@ -192,6 +198,9 @@ app.use(`${v1}/public/community-membership`, communityMembershipPublicRouter);
 // Aliases: frontend may call /public/membership/* or /public/community-care/*
 app.use(`${v1}/public/membership`, communityMembershipPublicRouter);
 app.use(`${v1}/public/community-care`, communityMembershipPublicRouter);
+app.get(`${v1}/public/memberships/:reference`, publicReadLimiter, getMembershipStatusHandler);
+app.get(`${v1}/public/memberships/:reference/receipt.pdf`, publicReadLimiter, downloadReceiptPdfHandler);
+app.get(`${v1}/public/memberships/:reference/card.pdf`, publicReadLimiter, downloadCardPdfHandler);
 
 // ─── Donations ──────────────────────────────────────────────────
 app.use(`${v1}/public/donations`, donationsPublicRouter);

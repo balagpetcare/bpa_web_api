@@ -2,7 +2,7 @@ import { randomUUID, createHmac } from 'crypto';
 import { prisma } from '../../database/prisma';
 import { config } from '../../config';
 import { AppError } from '../../utils/AppError';
-import { initializeEpsPayment, generateMerchantTxnId, isEPSConfigured } from '../../services/eps.service';
+import { initializeEpsPayment, generateMerchantTxnId, isEPSConfigured, getEpsGatewayBase } from '../../services/eps.service';
 import { createPayment, updatePaymentEpsTxnId, updatePaymentStatus } from '../payments/payments.repository';
 import * as repo from './community-membership.repository';
 import { getZoneById } from '../community-zones/community-zones.repository';
@@ -133,6 +133,7 @@ export async function getPublicOverview() {
       cardValidityLabel: program.cardValidityLabel,
       isOfferActive,
       offerRemainingSeconds,
+      paymentMode: (isEPSConfigured() && config.EPS_ENABLED === 'true' && config.PAYMENT_CHANNEL_MODE !== 'MANUAL') ? ('eps' as const) : ('manual' as const),
     } : null,
     tiers: tiersWithPrices,
     services: services.map((s) => ({
@@ -237,18 +238,27 @@ export async function initiatePurchase(dto: InitiatePurchaseDto, ipAddress?: str
     ].filter(Boolean).join(' | ') || null,
   });
 
-  // If EPS is not configured, return as pending for manual payment
-  if (!isEPSConfigured()) {
+  // If EPS is not configured or disabled, return as pending for manual payment
+  const isEps = config.EPS_ENABLED === 'true' && config.PAYMENT_CHANNEL_MODE !== 'MANUAL' && isEPSConfigured();
+
+  if (!isEps) {
     console.warn(`[Membership] Payment gateway inactive — purchase ${purchase.id} created as pending_payment for manual settlement.`);
     return {
+      // stable response shape
+      purchaseReference: purchase.id,
+      paymentReference: payment.id,
+      paymentMode: 'manual' as const,
+      redirectUrl: null,
+      statusUrl: `${config.FRONTEND_URL.replace(/\/$/, '')}/community-pet-care/payment/status?ref=${purchase.id}`,
+      message: 'Purchase initialized for manual payment',
+
+      // legacy fields for frontend compatibility
       purchaseId: purchase.id,
       paymentId: payment.id,
       merchantTxnId,
-      redirectUrl: null,
       amount,
       currency: 'BDT',
       tierName: tier.nameEn,
-      paymentMode: 'manual',
       mfs: {
         bKash: config.MFS_BKASH_NUMBER,
         nagad: config.MFS_NAGAD_NUMBER,
@@ -280,11 +290,54 @@ export async function initiatePurchase(dto: InitiatePurchaseDto, ipAddress?: str
 
   await updatePaymentEpsTxnId(payment.id, epsResult.TransactionId);
 
+  // Extract redirect URL with support for multiple common casing styles
+  let redirectUrl = epsResult.RedirectURL || 
+                    (epsResult as any).redirectUrl || 
+                    (epsResult as any).redirect_url || 
+                    (epsResult as any).gatewayUrl || 
+                    (epsResult as any).gateway_url || 
+                    (epsResult as any).paymentUrl || 
+                    (epsResult as any).payment_url || 
+                    (epsResult as any).url || null;
+
+  if (redirectUrl) {
+    if (!/^https?:\/\//i.test(redirectUrl)) {
+      const base = (config.EPS_BASE_URL || getEpsGatewayBase()).replace(/\/$/, '');
+      redirectUrl = `${base}${redirectUrl.startsWith('/') ? '' : '/'}${redirectUrl}`;
+    }
+
+    // Allowed hosts validation on backend-side
+    try {
+      const parsedUrl = new URL(redirectUrl);
+      const allowedHosts = config.EPS_ALLOWED_REDIRECT_HOSTS
+        ? config.EPS_ALLOWED_REDIRECT_HOSTS.split(',').map((h) => h.trim().toLowerCase())
+        : [];
+      
+      const host = parsedUrl.hostname.toLowerCase();
+      if (allowedHosts.length > 0 && !allowedHosts.includes(host)) {
+        console.error(`[EPS] Invalid redirect URL host: "${host}" (raw URL: "${redirectUrl}"). Allowed hosts: ${config.EPS_ALLOWED_REDIRECT_HOSTS}`);
+        throw AppError.badRequest('Payment gateway redirect URL is invalid or not allowed', 'PAYMENT_GATEWAY_REDIRECT_INVALID');
+      }
+    } catch (urlErr) {
+      if (urlErr instanceof AppError) throw urlErr;
+      console.error(`[EPS] Error parsing or validating redirect URL: "${redirectUrl}"`, urlErr);
+      throw AppError.badRequest('Payment gateway returned an invalid redirect URL', 'PAYMENT_GATEWAY_REDIRECT_INVALID');
+    }
+  }
+
   return {
+    // stable response shape
+    purchaseReference: purchase.id,
+    paymentReference: payment.id,
+    paymentMode: 'eps' as const,
+    redirectUrl,
+    statusUrl: `${config.FRONTEND_URL.replace(/\/$/, '')}/community-pet-care/payment/status?ref=${purchase.id}`,
+    message: 'Redirecting to payment gateway',
+
+    // legacy fields for frontend compatibility
     purchaseId: purchase.id,
     paymentId: payment.id,
     merchantTxnId,
-    redirectUrl: epsResult.RedirectURL,
     amount,
     currency: 'BDT',
     tierName: tier.nameEn,
@@ -958,4 +1011,73 @@ export async function adminSettleUpgrade(upgradeId: string, adminNote?: string) 
   } catch { /* noop */ }
 
   return { upgradeId: upgrade.id, status: 'completed' };
+}
+
+export async function getMembershipStatus(reference: string) {
+  const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  
+  const purchase = await prisma.communityMembershipPurchase.findFirst({
+    where: {
+      OR: [
+        ...(isUuid(reference) ? [{ id: reference }] : []),
+        { payment: { merchantTxnId: reference } },
+        { payment: { gatewayRef: reference } },
+        { payment: { epsTxnId: reference } },
+      ]
+    },
+    include: {
+      tier: true,
+      payment: true,
+      card: true,
+      preferredZone: true,
+    }
+  });
+
+  if (!purchase) {
+    throw AppError.notFound('Membership purchase');
+  }
+
+  const maskPhone = (phone: string) => {
+    if (phone.length <= 6) return phone;
+    return phone.slice(0, 4) + '*'.repeat(phone.length - 6) + phone.slice(-2);
+  };
+  
+  const maskEmail = (email: string) => {
+    const parts = email.split('@');
+    if (parts.length !== 2) return email;
+    const [local, domain] = parts;
+    if (local.length <= 2) return `*@${domain}`;
+    return `${local.slice(0, 2)}***@${domain}`;
+  };
+
+  const hasCard = !!purchase.card;
+  const baseUrl = config.BACKEND_URL.replace(/\/$/, '');
+  const frontendUrl = config.FRONTEND_URL.replace(/\/$/, '');
+
+  const regularPrice = Number(purchase.tier.regularPriceBdt);
+  const launchPrice = purchase.tier.launchPriceBdt ? Number(purchase.tier.launchPriceBdt) : null;
+
+  return {
+    reference: purchase.id,
+    status: purchase.status,
+    paymentStatus: purchase.payment?.status ?? 'pending',
+    cardIssued: hasCard,
+    tierName: purchase.tier.nameEn,
+    tierNameBn: purchase.tier.nameBn,
+    amount: Number(purchase.amountBdt),
+    regularPrice,
+    launchPrice,
+    currency: purchase.currency,
+    fullName: purchase.memberName,
+    mobileMasked: maskPhone(purchase.memberMobile),
+    emailMasked: purchase.memberEmail ? maskEmail(purchase.memberEmail) : null,
+    preferredZone: purchase.preferredZone?.name ?? null,
+    numberOfPets: purchase.petLimit,
+    validFrom: purchase.startsAt ? purchase.startsAt.toISOString() : null,
+    validUntil: purchase.expiresAt ? purchase.expiresAt.toISOString() : null,
+    cardNumber: purchase.card?.cardNumber ?? null,
+    verificationUrl: purchase.card?.qrToken ? `${frontendUrl}/verify/membership-card/${purchase.card.qrToken}` : null,
+    receiptPdfUrl: `${baseUrl}/api/v1/public/memberships/${purchase.id}/receipt.pdf`,
+    cardPdfUrl: purchase.card ? `${baseUrl}/api/v1/public/memberships/${purchase.id}/card.pdf` : null,
+  };
 }

@@ -1,14 +1,149 @@
+import crypto from 'crypto';
 import { EPS } from 'eps-gateway-nodejs';
 import { config } from '../config';
 import { AppError } from '../utils/AppError';
 
-let _instance: EPS | null = null;
+// ── EPS gateway base URL ───────────────────────────────────────────────────────
+// The eps-gateway-nodejs SDK has a hardcoded sandbox domain (sandbox-pgapi.eps.com.bd)
+// that differs from the real EPS sandbox (sandboxpgapi.eps.com.bd). We bypass the
+// SDK's HTTP calls for token + initialize so we can use the correct base URL.
 
 function isSandbox(): boolean {
   if (config.EPS_ENV === 'production') return false;
   if (config.EPS_ENV === 'demo') return true;
   return config.EPS_SANDBOX === 'true';
 }
+
+export function getEpsGatewayBase(): string {
+  const explicit = (config.EPS_BASE_URL || config.EPS_API_BASE_URL || '').replace(/\/$/, '');
+  if (explicit) return explicit;
+  return isSandbox()
+    ? 'https://sandboxpgapi.eps.com.bd'
+    : 'https://pgapi.eps.com.bd';
+}
+
+function epsHmac(value: string, key: string): string {
+  return crypto.createHmac('sha512', Buffer.from(key, 'utf8'))
+    .update(value, 'utf8')
+    .digest('base64');
+}
+
+// ── Token cache ────────────────────────────────────────────────────────────────
+
+let _cachedToken: string | null = null;
+let _tokenExpiry: Date | null = null;
+
+async function fetchEpsToken(): Promise<string> {
+  if (_cachedToken && _tokenExpiry && new Date() < _tokenExpiry) return _cachedToken;
+
+  const base = getEpsGatewayBase();
+  const url = `${base}/v1/Auth/GetToken`;
+  const hash = epsHmac(config.EPS_USERNAME!, config.EPS_HASH_KEY!);
+
+  console.log(`[EPS] GetToken → ${url} (user=${config.EPS_USERNAME})`);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-hash': hash },
+      body: JSON.stringify({ userName: config.EPS_USERNAME, password: config.EPS_PASSWORD }),
+    });
+  } catch (netErr) {
+    console.error(`[EPS] GetToken network error (url=${url}):`, netErr instanceof Error ? netErr.message : netErr);
+    throw new Error(`EPS GetToken: no response from ${url}`);
+  }
+
+  let body: Record<string, unknown> = {};
+  try { body = await res.json() as Record<string, unknown>; } catch { /* non-JSON body */ }
+
+  if (!res.ok) {
+    console.error(`[EPS] GetToken HTTP ${res.status} (url=${url}):`, body);
+    throw new Error(`EPS GetToken failed: HTTP ${res.status} — ${body.errorMessage ?? body.ErrorMessage ?? JSON.stringify(body)}`);
+  }
+
+  if (body.errorMessage || body.errorCode) {
+    console.error(`[EPS] GetToken API error:`, { code: body.errorCode, message: body.errorMessage });
+    throw new Error(`EPS authentication failed: ${body.errorMessage}`);
+  }
+
+  if (typeof body.token !== 'string') {
+    console.error(`[EPS] GetToken unexpected response (missing token):`, body);
+    throw new Error('EPS GetToken: no token in response');
+  }
+
+  _cachedToken = body.token;
+  _tokenExpiry = body.expireDate
+    ? new Date(body.expireDate as string)
+    : new Date(Date.now() + 20 * 60 * 1000);
+  console.log(`[EPS] Token acquired, expires=${_tokenExpiry.toISOString()}`);
+  return _cachedToken;
+}
+
+// ── Direct EPS initialize call ─────────────────────────────────────────────────
+
+export interface EpsInitializeResponse {
+  RedirectURL: string;
+  TransactionId: string;
+  EPSTransactionId?: string;
+  ErrorMessage?: string;
+  ErrorCode?: string | null;
+  [key: string]: unknown;
+}
+
+async function callEpsInitialize(
+  requestBody: Record<string, unknown>,
+  merchantTxnId: string,
+): Promise<EpsInitializeResponse> {
+  const base = getEpsGatewayBase();
+  const url = `${base}/v1/EPSEngine/InitializeEPS`;
+  const token = await fetchEpsToken();
+  const hash = epsHmac(merchantTxnId, config.EPS_HASH_KEY!);
+
+  console.log(`[EPS] InitializeEPS → ${url} | merchantTxnId=${merchantTxnId}`);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-hash': hash,
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
+  } catch (netErr) {
+    console.error(`[EPS] InitializeEPS network error (url=${url}):`, netErr instanceof Error ? netErr.message : netErr);
+    throw new Error(`EPS InitializeEPS: no response from ${url}`);
+  }
+
+  let body: Record<string, unknown> = {};
+  try { body = await res.json() as Record<string, unknown>; } catch { /* non-JSON body */ }
+
+  if (!res.ok) {
+    console.error(`[EPS] InitializeEPS HTTP ${res.status} (url=${url}):`, body);
+    throw new Error(`EPS InitializeEPS failed: HTTP ${res.status} — ${body.ErrorMessage ?? body.errorMessage ?? JSON.stringify(body)}`);
+  }
+
+  if (body.ErrorMessage || body.ErrorCode) {
+    console.error(`[EPS] InitializeEPS API error:`, { code: body.ErrorCode, message: body.ErrorMessage });
+    throw new Error(`EPS initialization failed: ${body.ErrorMessage}`);
+  }
+
+  if (!body.RedirectURL || !body.TransactionId) {
+    console.error(`[EPS] InitializeEPS missing required fields in response:`, body);
+    throw new Error(
+      `EPS InitializeEPS: missing ${!body.RedirectURL ? 'RedirectURL' : 'TransactionId'} in response`,
+    );
+  }
+
+  return body as EpsInitializeResponse;
+}
+
+// ── SDK instance (used only for verifyPayment) ─────────────────────────────────
+
+let _instance: EPS | null = null;
 
 export function getEPS(): EPS {
   if (!_instance) {
@@ -23,7 +158,7 @@ export function getEPS(): EPS {
     }
 
     const sandbox = isSandbox();
-    console.log(`[EPS] Initializing in ${sandbox ? 'SANDBOX (demo)' : 'PRODUCTION'} mode`);
+    console.log(`[EPS] Initializing SDK in ${sandbox ? 'SANDBOX (demo)' : 'PRODUCTION'} mode`);
     _instance = new EPS({
       username: config.EPS_USERNAME!,
       password: config.EPS_PASSWORD!,
@@ -32,6 +167,17 @@ export function getEPS(): EPS {
       storeId: config.EPS_STORE_ID!,
       sandbox,
     });
+
+    // Patch SDK endpoints to use the configured gateway base URL.
+    // The SDK hardcodes sandbox-pgapi.eps.com.bd (hyphen) but the real
+    // sandbox endpoint may be sandboxpgapi.eps.com.bd (no hyphen).
+    const epsBase = getEpsGatewayBase();
+    const ep = (_instance as unknown as { ENDPOINTS: Record<string, Record<string, string>> }).ENDPOINTS;
+    const tier = sandbox ? 'SANDBOX' : 'PRODUCTION';
+    ep[tier].GET_TOKEN  = `${epsBase}/v1/Auth/GetToken`;
+    ep[tier].INITIALIZE = `${epsBase}/v1/EPSEngine/InitializeEPS`;
+    ep[tier].VERIFY     = `${epsBase}/v1/EPSEngine/CheckMerchantTransactionStatus`;
+    console.log(`[EPS] SDK ${tier} endpoints overridden → ${epsBase}`);
   }
 
   return _instance;
@@ -165,39 +311,80 @@ function buildCallbackUrl(
   return url.toString();
 }
 
-export async function initializeEpsPayment(params: EpsPaymentParams) {
+export async function initializeEpsPayment(params: EpsPaymentParams): Promise<EpsInitializeResponse> {
   const customerPhone = normalizeBdPhone(params.customerPhone);
   const { bookingRef, referenceRef, ...epsParams } = params;
 
-  const apiBase = config.BACKEND_URL.replace(/\/$/, '');
+  // callbackBase = our backend (for EPS to POST callbacks back to us)
+  const callbackBase = config.BACKEND_URL.replace(/\/$/, '');
   const callbackRefs = { bookingRef, referenceRef };
-  const successUrl = buildCallbackUrl(apiBase, '/api/v1/payment/callback/success', callbackRefs);
-  const failUrl = buildCallbackUrl(apiBase, '/api/v1/payment/callback/fail', callbackRefs);
-  const cancelUrl = buildCallbackUrl(apiBase, '/api/v1/payment/callback/cancel', callbackRefs);
-  const epsPayload = { ...epsParams, customerPhone, successUrl, failUrl, cancelUrl };
+  const successUrl = buildCallbackUrl(callbackBase, '/api/v1/payment/callback/success', callbackRefs);
+  const failUrl    = buildCallbackUrl(callbackBase, '/api/v1/payment/callback/fail', callbackRefs);
+  const cancelUrl  = buildCallbackUrl(callbackBase, '/api/v1/payment/callback/cancel', callbackRefs);
 
   if (config.NODE_ENV === 'production') {
-    if (containsLocalhost(apiBase) || containsLocalhost(config.FRONTEND_URL)) {
+    if (containsLocalhost(callbackBase) || containsLocalhost(config.FRONTEND_URL)) {
       throw new Error(
         `[EPS] Config error: localhost URL detected in production. ` +
-          `BACKEND_URL="${apiBase}" FRONTEND_URL="${config.FRONTEND_URL}". ` +
-          `Set both to production hostnames ` +
-          `(e.g. BACKEND_URL=https://api.bangladeshpetassociation.com, ` +
-          `FRONTEND_URL=https://bangladeshpetassociation.com).`,
+          `BACKEND_URL="${callbackBase}" FRONTEND_URL="${config.FRONTEND_URL}". ` +
+          `Set both to production hostnames.`,
       );
     }
   }
 
+  const gatewayBase = getEpsGatewayBase();
   console.log(
     `[EPS] initializePayment | ` +
-      `apiBase=${apiBase} | ` +
-      `frontendBase=${config.FRONTEND_URL} | ` +
-      `successUrl=${epsPayload.successUrl} | ` +
-      `failUrl=${epsPayload.failUrl} | ` +
-      `cancelUrl=${epsPayload.cancelUrl}`,
+      `gatewayBase=${gatewayBase} | ` +
+      `callbackBase=${callbackBase} | ` +
+      `successUrl=${successUrl} | ` +
+      `failUrl=${failUrl} | ` +
+      `cancelUrl=${cancelUrl}`,
   );
 
-  return getEPS().initializePayment(epsPayload);
+  const requestBody: Record<string, unknown> = {
+    merchantId:            config.EPS_MERCHANT_ID,
+    storeId:               config.EPS_STORE_ID,
+    CustomerOrderId:       epsParams.customerOrderId,
+    merchantTransactionId: epsParams.merchantTransactionId,
+    transactionTypeId:     1, // WEB
+    financialEntityId:     0,
+    transitionStatusId:    0,
+    totalAmount:           epsParams.totalAmount,
+    ipAddress:             '0.0.0.0',
+    version:               '1',
+    successUrl,
+    failUrl,
+    cancelUrl,
+    customerName:          epsParams.customerName,
+    customerEmail:         epsParams.customerEmail,
+    CustomerAddress:       epsParams.customerAddress,
+    CustomerAddress2:      '',
+    CustomerCity:          epsParams.customerCity,
+    CustomerState:         epsParams.customerState,
+    CustomerPostcode:      epsParams.customerPostcode,
+    CustomerCountry:       'BD',
+    CustomerPhone:         customerPhone,
+    ShipmentName:          '',
+    ShipmentAddress:       '',
+    ShipmentAddress2:      '',
+    ShipmentCity:          '',
+    ShipmentState:         '',
+    ShipmentPostcode:      '',
+    ShipmentCountry:       '',
+    ValueA:                epsParams.valueA ?? '',
+    ValueB:                epsParams.valueB ?? '',
+    ValueC:                epsParams.valueC ?? '',
+    ValueD:                '',
+    ShippingMethod:        'NO',
+    NoOfItem:              '1',
+    ProductName:           epsParams.productName,
+    ProductProfile:        'general',
+    ProductCategory:       'general',
+    ProductList:           [],
+  };
+
+  return callEpsInitialize(requestBody, epsParams.merchantTransactionId);
 }
 
 const MEMBERSHIP_FEES: Record<string, number> = {

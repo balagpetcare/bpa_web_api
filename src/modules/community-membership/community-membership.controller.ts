@@ -1,9 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendSuccess, sendCreated } from '../../utils/response';
 import { AppError } from '../../utils/AppError';
+import { prisma } from '../../database/prisma';
 import { auditContextFromRequest, auditCreate, auditUpdate, auditDelete } from '../../utils/audit';
 import * as svc from './community-membership.service';
 import * as repo from './community-membership.repository';
+import { isEPSConfigured } from '../../services/eps.service';
+import { config } from '../../config';
 import type {
   CreateTierDto, CreateServiceDto,
   CreateDiscountDto, CreateBenefitDto, UpdateBenefitDto,
@@ -66,6 +69,7 @@ export async function getPublicSettingsHandler(_req: Request, res: Response, nex
       offerRemainingSeconds,
       launchOfferEnabled: isOfferActive,
       programActive: program?.isActive ?? true,
+      paymentMode: (isEPSConfigured() && config.EPS_ENABLED === 'true' && config.PAYMENT_CHANNEL_MODE !== 'MANUAL') ? 'eps' : 'manual',
     });
   } catch (err) { next(err); }
 }
@@ -483,4 +487,95 @@ export async function getZoneDemandHandler(_req: Request, res: Response, next: N
 export async function submitTransactionHandler(req: Request, res: Response, next: NextFunction) {
   try { sendSuccess(res, await svc.submitPurchaseTransaction(req.body as SubmitPurchaseTransactionDto)); }
   catch (err) { next(err); }
+}
+
+export async function getMembershipStatusHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const status = await svc.getMembershipStatus(req.params.reference);
+    sendSuccess(res, status);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function downloadReceiptPdfHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { reference } = req.params;
+    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+    const purchase = await prisma.communityMembershipPurchase.findFirst({
+      where: {
+        OR: [
+          ...(isUuid(reference) ? [{ id: reference }] : []),
+          { payment: { merchantTxnId: reference } },
+          { payment: { gatewayRef: reference } },
+          { payment: { epsTxnId: reference } },
+        ]
+      },
+      include: {
+        tier: true,
+        payment: true,
+        card: true,
+        preferredZone: true,
+      }
+    });
+
+    if (!purchase) {
+      throw AppError.notFound('Membership purchase');
+    }
+
+    if (purchase.status !== 'paid' || !purchase.card) {
+      throw AppError.forbidden('Only paid memberships with issued cards can download receipts. Please contact support.', 'MEMBERSHIP_UNPAID');
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Disposition', `inline; filename="BPA-membership-receipt-${purchase.id}.pdf"`);
+
+    const { streamMembershipReceiptPdf } = await import('../memberships/membership-receipt.pdf');
+    await streamMembershipReceiptPdf(purchase, res);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function downloadCardPdfHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { reference } = req.params;
+    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+    const purchase = await prisma.communityMembershipPurchase.findFirst({
+      where: {
+        OR: [
+          ...(isUuid(reference) ? [{ id: reference }] : []),
+          { payment: { merchantTxnId: reference } },
+          { payment: { gatewayRef: reference } },
+          { payment: { epsTxnId: reference } },
+        ]
+      },
+      include: {
+        tier: true,
+        payment: true,
+        card: true,
+        preferredZone: true,
+      }
+    });
+
+    if (!purchase) {
+      throw AppError.notFound('Membership purchase');
+    }
+
+    if (purchase.status !== 'paid' || !purchase.card) {
+      throw AppError.forbidden('Only paid memberships with issued cards can download the digital card. Please contact support.', 'MEMBERSHIP_UNPAID');
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Disposition', `inline; filename="BPA-community-care-card-${purchase.card.cardNumber}.pdf"`);
+
+    const { streamMembershipCardPdf } = await import('../memberships/membership-card.pdf');
+    await streamMembershipCardPdf(purchase, res);
+  } catch (err) {
+    next(err);
+  }
 }
