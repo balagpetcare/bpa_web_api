@@ -76,3 +76,22 @@ export const oauthCallbackLimiter = rateLimit({
   legacyHeaders: false,
   message: { success: false, message: 'Too many OAuth attempts. Please try again later.' },
 });
+
+/** Content comments limit — 10 comments per 5 minutes per IP */
+export const commentLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many comments. Please wait before trying again.' },
+});
+
+/** Content reactions limit — 30 reactions per minute per IP */
+export const reactionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many actions. Please slow down.' },
+});
+

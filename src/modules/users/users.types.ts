@@ -34,7 +34,7 @@ export interface UserResponse {
   email: string | null;
   phone: string | null;
   isActive: boolean;
-  roles: string[];
+  roles: { id: string; name: string }[];
   createdAt: Date;
   updatedAt: Date;
 }

@@ -13,7 +13,7 @@ const userSelect = {
   isActive: true,
   createdAt: true,
   updatedAt: true,
-  userRoles: { select: { role: { select: { name: true } } } },
+  userRoles: { select: { role: { select: { id: true, name: true } } } },
 } as const;
 
 function format(u: {
@@ -24,7 +24,7 @@ function format(u: {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
-  userRoles: Array<{ role: { name: string } }>;
+  userRoles: Array<{ role: { id: string; name: string } }>;
 }): UserResponse {
   return {
     id: u.id,
@@ -32,7 +32,7 @@ function format(u: {
     email: u.email,
     phone: u.phone,
     isActive: u.isActive,
-    roles: u.userRoles.map((ur) => ur.role.name),
+    roles: u.userRoles.map((ur) => ({ id: ur.role.id, name: ur.role.name })),
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
   };
@@ -73,7 +73,55 @@ export async function getUserById(id: string): Promise<UserResponse> {
   return format(user);
 }
 
-export async function createUser(dto: CreateUserDto): Promise<UserResponse> {
+interface RequestingUser {
+  sub: string;
+  roles: string[];
+}
+
+async function enforceSuperAdminPrivilege(
+  targetUserId: string | null,
+  requestedRoleIds: string[] | undefined,
+  currentUser: RequestingUser
+) {
+  const isSuperAdmin = currentUser.roles.includes('super_admin');
+
+  // 1. If target user exists, check if they currently have super_admin or admin roles
+  if (targetUserId) {
+    const targetUser = await prisma.user.findFirst({
+      where: { id: targetUserId, deletedAt: null },
+      select: {
+        userRoles: {
+          select: {
+            role: { select: { name: true } }
+          }
+        }
+      }
+    });
+    if (targetUser) {
+      const currentRoles = targetUser.userRoles.map(ur => ur.role.name);
+      const isTargetHighPrivilege = currentRoles.includes('super_admin') || currentRoles.includes('admin');
+      if (isTargetHighPrivilege && !isSuperAdmin) {
+        throw AppError.forbidden('Only a Super Admin can modify or delete high-privilege users.');
+      }
+    }
+  }
+
+  // 2. Check if the client is trying to assign high-privilege roles (super_admin or admin)
+  if (requestedRoleIds && requestedRoleIds.length > 0) {
+    const roles = await prisma.role.findMany({
+      where: { id: { in: requestedRoleIds } },
+      select: { name: true }
+    });
+    const assignsHighPrivilege = roles.some(r => r.name === 'super_admin' || r.name === 'admin');
+    if (assignsHighPrivilege && !isSuperAdmin) {
+      throw AppError.forbidden('Only a Super Admin can assign high-privilege roles.');
+    }
+  }
+}
+
+export async function createUser(dto: CreateUserDto, currentUser: RequestingUser): Promise<UserResponse> {
+  await enforceSuperAdminPrivilege(null, dto.roleIds, currentUser);
+
   if (dto.email) {
     const existing = await prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw AppError.conflict('A user with this email already exists');
@@ -97,9 +145,33 @@ export async function createUser(dto: CreateUserDto): Promise<UserResponse> {
   return format(user);
 }
 
-export async function updateUser(id: string, dto: UpdateUserDto): Promise<UserResponse> {
+export async function updateUser(id: string, dto: UpdateUserDto, currentUser: RequestingUser): Promise<UserResponse> {
   const existing = await prisma.user.findFirst({ where: { id, deletedAt: null } });
   if (!existing) throw AppError.notFound('User');
+
+  if (id === currentUser.sub && dto.isActive === false) {
+    throw AppError.forbidden('You cannot suspend your own account.');
+  }
+
+  await enforceSuperAdminPrivilege(id, dto.roleIds, currentUser);
+
+  if (dto.isActive === false) {
+    const isTargetSuperAdmin = await prisma.userRole.findFirst({
+      where: { userId: id, role: { name: 'super_admin' } }
+    });
+    if (isTargetSuperAdmin) {
+      const activeSuperAdminCount = await prisma.user.count({
+        where: {
+          deletedAt: null,
+          isActive: true,
+          userRoles: { some: { role: { name: 'super_admin' } } }
+        }
+      });
+      if (activeSuperAdminCount <= 1) {
+        throw AppError.conflict('Cannot suspend the last active Super Admin.');
+      }
+    }
+  }
 
   if (dto.email && dto.email !== existing.email) {
     const conflict = await prisma.user.findUnique({ where: { email: dto.email } });
@@ -129,9 +201,31 @@ export async function updateUser(id: string, dto: UpdateUserDto): Promise<UserRe
   return format(user);
 }
 
-export async function deleteUser(id: string): Promise<void> {
+export async function deleteUser(id: string, currentUser: RequestingUser): Promise<void> {
   const existing = await prisma.user.findFirst({ where: { id, deletedAt: null } });
   if (!existing) throw AppError.notFound('User');
+
+  if (id === currentUser.sub) {
+    throw AppError.forbidden('You cannot delete your own account.');
+  }
+
+  await enforceSuperAdminPrivilege(id, undefined, currentUser);
+
+  const isTargetSuperAdmin = await prisma.userRole.findFirst({
+    where: { userId: id, role: { name: 'super_admin' } }
+  });
+  if (isTargetSuperAdmin) {
+    const activeSuperAdminCount = await prisma.user.count({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        userRoles: { some: { role: { name: 'super_admin' } } }
+      }
+    });
+    if (activeSuperAdminCount <= 1) {
+      throw AppError.conflict('Cannot delete the last active Super Admin.');
+    }
+  }
 
   await prisma.user.update({
     where: { id },

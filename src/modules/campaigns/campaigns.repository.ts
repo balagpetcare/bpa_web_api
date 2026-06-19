@@ -5,7 +5,7 @@ import type {
   CreateCampaignDto, UpdateCampaignDto, CampaignListQuery,
   CreateSessionDto, UpdateSessionDto,
   CreateServiceDto, UpdateServiceDto,
-  AssignDoctorDto, AssignVolunteerDto,
+  AssignDoctorDto, UpdateDoctorAssignmentDto, BulkAssignDoctorDto, AssignVolunteerDto,
 } from './campaigns.types';
 
 const campaignInclude = {
@@ -272,22 +272,81 @@ export async function deleteService(id: string) {
 
 // ─── Doctor Assignment ────────────────────────────────────────────
 
-export async function assignDoctor(campaignId: string, dto: AssignDoctorDto) {
+const doctorAssignmentInclude = {
+  doctor: { select: { id: true, name: true, licenseNumber: true, specialization: true, mobile: true, email: true, photoUrl: true } },
+  session: { select: { id: true, sessionDate: true, startTime: true, endTime: true, venue: { select: { name: true } } } },
+} as const;
+
+export async function assignDoctor(campaignId: string, dto: AssignDoctorDto, assignedBy?: string) {
   return prisma.campaignDoctor.create({
-    data: { campaignId, doctorId: dto.doctorId, sessionId: dto.sessionId },
-    include: { doctor: { select: { id: true, name: true, licenseNumber: true } } },
+    data: {
+      campaignId,
+      doctorId: dto.doctorId,
+      sessionId: dto.sessionId ?? null,
+      role: dto.role,
+      doctorDuty: dto.doctorDuty,
+      isSigningDoctor: dto.isSigningDoctor ?? false,
+      isPrimarySupervisor: dto.isPrimarySupervisor ?? false,
+      assignedDate: dto.assignedDate,
+      notes: dto.notes ?? null,
+      assignedBy: assignedBy ?? null,
+    },
+    include: doctorAssignmentInclude,
   });
 }
 
-export async function listCampaignDoctors(campaignId: string) {
+export async function listCampaignDoctors(campaignId: string, sessionId?: string) {
   return prisma.campaignDoctor.findMany({
-    where: { campaignId },
-    include: { doctor: { select: { id: true, name: true, licenseNumber: true, specialization: true } } },
+    where: { campaignId, ...(sessionId ? { sessionId } : {}) },
+    include: doctorAssignmentInclude,
+    orderBy: [{ isSigningDoctor: 'desc' }, { doctorDuty: 'asc' }, { createdAt: 'desc' }],
   });
+}
+
+export async function updateDoctorAssignment(id: string, dto: UpdateDoctorAssignmentDto) {
+  return prisma.campaignDoctor.update({
+    where: { id },
+    data: {
+      ...(dto.role && { role: dto.role }),
+      ...(dto.doctorDuty && { doctorDuty: dto.doctorDuty }),
+      ...(dto.isSigningDoctor !== undefined && { isSigningDoctor: dto.isSigningDoctor }),
+      ...(dto.isPrimarySupervisor !== undefined && { isPrimarySupervisor: dto.isPrimarySupervisor }),
+      ...(dto.assignedDate && { assignedDate: dto.assignedDate }),
+      ...(dto.notes !== undefined && { notes: dto.notes }),
+      ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+    },
+    include: doctorAssignmentInclude,
+  });
+}
+
+export async function deleteDoctorAssignmentById(id: string) {
+  return prisma.campaignDoctor.delete({ where: { id } });
 }
 
 export async function removeDoctorAssignment(campaignId: string, doctorId: string) {
-  return prisma.campaignDoctor.delete({ where: { campaignId_doctorId: { campaignId, doctorId } } });
+  const first = await prisma.campaignDoctor.findFirst({ where: { campaignId, doctorId } });
+  if (first) await prisma.campaignDoctor.delete({ where: { id: first.id } });
+}
+
+export async function bulkAssignDoctors(campaignId: string, dto: BulkAssignDoctorDto, assignedBy?: string) {
+  const results = [];
+  for (const item of dto.assignments) {
+    const record = await prisma.campaignDoctor.create({
+      data: {
+        campaignId,
+        doctorId: item.doctorId,
+        sessionId: item.sessionId ?? null,
+        role: item.doctorDuty.toLowerCase(),
+        doctorDuty: item.doctorDuty,
+        isSigningDoctor: item.isSigningDoctor ?? false,
+        isPrimarySupervisor: item.isPrimarySupervisor ?? false,
+        notes: item.notes ?? null,
+        assignedBy: assignedBy ?? null,
+      },
+    });
+    results.push(record);
+  }
+  return results;
 }
 
 // ─── Volunteer Assignment ─────────────────────────────────────────

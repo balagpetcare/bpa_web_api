@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CampaignType, CampaignStatus } from '@prisma/client';
+import { CampaignType, CampaignStatus, DoctorDutyRole } from '@prisma/client';
 
 // ─── Campaign ────────────────────────────────────────────────────
 
@@ -96,6 +96,33 @@ export const updateServiceSchema = z.object({
 export const assignDoctorSchema = z.object({
   doctorId: z.string().uuid(),
   sessionId: z.string().uuid().optional(),
+  role: z.string().max(50).default('vaccinator'),
+  doctorDuty: z.nativeEnum(DoctorDutyRole).default(DoctorDutyRole.VACCINATOR),
+  isSigningDoctor: z.boolean().default(false),
+  isPrimarySupervisor: z.boolean().default(false),
+  assignedDate: z.coerce.date().optional(),
+  notes: z.string().max(500).optional().nullable(),
+});
+
+export const updateDoctorAssignmentSchema = z.object({
+  role: z.string().max(50).optional(),
+  doctorDuty: z.nativeEnum(DoctorDutyRole).optional(),
+  isSigningDoctor: z.boolean().optional(),
+  isPrimarySupervisor: z.boolean().optional(),
+  assignedDate: z.coerce.date().optional(),
+  notes: z.string().max(500).optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+export const bulkAssignDoctorSchema = z.object({
+  assignments: z.array(z.object({
+    doctorId: z.string().uuid(),
+    sessionId: z.string().uuid().optional(),
+    doctorDuty: z.nativeEnum(DoctorDutyRole).default(DoctorDutyRole.VACCINATOR),
+    isSigningDoctor: z.boolean().default(false),
+    isPrimarySupervisor: z.boolean().default(false),
+    notes: z.string().max(500).optional().nullable(),
+  })).min(1).max(50),
 });
 
 export const assignVolunteerSchema = z.object({
@@ -111,4 +138,15 @@ export type UpdateSessionDto = z.infer<typeof updateSessionSchema>;
 export type CreateServiceDto = z.infer<typeof createServiceSchema>;
 export type UpdateServiceDto = z.infer<typeof updateServiceSchema>;
 export type AssignDoctorDto = z.infer<typeof assignDoctorSchema>;
+export type UpdateDoctorAssignmentDto = z.infer<typeof updateDoctorAssignmentSchema>;
+export type BulkAssignDoctorDto = z.infer<typeof bulkAssignDoctorSchema>;
 export type AssignVolunteerDto = z.infer<typeof assignVolunteerSchema>;
+
+export const availableDoctorsQuerySchema = z.object({
+  page: z.coerce.number().positive().optional(),
+  limit: z.coerce.number().positive().max(100).optional(),
+  search: z.string().optional(),
+  includeAssigned: z.preprocess((val) => val === 'true' || val === true, z.boolean()).optional(),
+});
+export type AvailableDoctorsQuery = z.infer<typeof availableDoctorsQuerySchema>;
+

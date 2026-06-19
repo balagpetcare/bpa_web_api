@@ -165,14 +165,21 @@ export async function deleteServiceHandler(req: Request, res: Response, next: Ne
 
 export async function assignDoctorHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const assignment = await svc.assignDoctor(req.params.id, req.body as AssignDoctorDto);
+    const assignment = await svc.assignDoctor(req.params.id, req.body as AssignDoctorDto, req.user.sub);
     sendCreated(res, assignment);
+  } catch (err) { next(err); }
+}
+
+export async function bulkAssignDoctorsHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await svc.bulkAssignDoctors(req.params.id, req.body, req.user.sub);
+    sendCreated(res, result);
   } catch (err) { next(err); }
 }
 
 export async function listCampaignDoctorsHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    sendSuccess(res, await svc.listCampaignDoctors(req.params.id));
+    sendSuccess(res, await svc.listCampaignDoctors(req.params.id, req.query.sessionId as string | undefined));
   } catch (err) { next(err); }
 }
 
@@ -180,6 +187,27 @@ export async function removeDoctorHandler(req: Request, res: Response, next: Nex
   try {
     await svc.removeDoctorAssignment(req.params.id, req.params.doctorId);
     sendNoContent(res);
+  } catch (err) { next(err); }
+}
+
+export async function updateDoctorAssignmentHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const updated = await svc.updateDoctorAssignment(req.params.id, req.params.assignmentId, req.body as any);
+    sendSuccess(res, updated);
+  } catch (err) { next(err); }
+}
+
+export async function removeDoctorAssignmentHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await svc.removeDoctorAssignmentById(req.params.id, req.params.assignmentId);
+    sendNoContent(res);
+  } catch (err) { next(err); }
+}
+
+export async function getAvailableDoctorsHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await svc.getAvailableDoctors(req.params.id, req.query as any);
+    sendSuccess(res, result.items, 200, result.meta);
   } catch (err) { next(err); }
 }
 

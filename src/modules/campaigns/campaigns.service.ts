@@ -8,8 +8,10 @@ import type {
   CreateCampaignDto, UpdateCampaignDto, CampaignListQuery,
   CreateSessionDto, UpdateSessionDto,
   CreateServiceDto, UpdateServiceDto,
-  AssignDoctorDto, AssignVolunteerDto,
+  AssignDoctorDto, UpdateDoctorAssignmentDto, BulkAssignDoctorDto, AssignVolunteerDto,
+  AvailableDoctorsQuery,
 } from './campaigns.types';
+import { parsePaginationQuery, buildPaginationMeta } from '../../utils/response';
 
 // ─── Slug ────────────────────────────────────────────────────────
 
@@ -194,14 +196,146 @@ export async function deleteService(campaignId: string, serviceId: string) {
 
 // ─── Doctor Assignment ────────────────────────────────────────────
 
-export async function assignDoctor(campaignId: string, dto: AssignDoctorDto) {
+export async function assignDoctor(campaignId: string, dto: AssignDoctorDto, actorId?: string) {
   await getCampaign(campaignId);
-  return repo.assignDoctor(campaignId, dto);
+
+  const doctor = await prisma.doctor.findUnique({ where: { id: dto.doctorId } });
+  if (!doctor) throw AppError.notFound('Doctor not found');
+  if (!doctor.isActive) throw AppError.badRequest('Doctor is not active and cannot be assigned');
+
+  if (dto.sessionId) {
+    const session = await prisma.campaignSession.findFirst({ where: { id: dto.sessionId, campaignId } });
+    if (!session) throw AppError.notFound('Session not found in this campaign');
+  }
+
+  // If marking as signing doctor, validate only one signing doctor per session scope
+  if (dto.isSigningDoctor) {
+    const scope = dto.sessionId ? { campaignId, sessionId: dto.sessionId } : { campaignId, sessionId: null };
+    await prisma.campaignDoctor.updateMany({ where: { ...scope, isSigningDoctor: true }, data: { isSigningDoctor: false } });
+  }
+
+  return repo.assignDoctor(campaignId, dto, actorId);
 }
 
-export async function listCampaignDoctors(campaignId: string) {
+export async function listCampaignDoctors(campaignId: string, sessionId?: string) {
   await getCampaign(campaignId);
-  return repo.listCampaignDoctors(campaignId);
+  return repo.listCampaignDoctors(campaignId, sessionId);
+}
+
+export async function updateDoctorAssignment(campaignId: string, assignmentId: string, dto: UpdateDoctorAssignmentDto) {
+  await getCampaign(campaignId);
+  const assignment = await prisma.campaignDoctor.findUnique({ where: { id: assignmentId } });
+  if (!assignment || assignment.campaignId !== campaignId) {
+    throw AppError.notFound('Doctor assignment not found in this campaign');
+  }
+
+  // If marking as signing doctor, clear others in the same scope
+  if (dto.isSigningDoctor) {
+    const scope = assignment.sessionId
+      ? { campaignId, sessionId: assignment.sessionId, id: { not: assignmentId } }
+      : { campaignId, sessionId: null, id: { not: assignmentId } };
+    await prisma.campaignDoctor.updateMany({ where: scope, data: { isSigningDoctor: false } });
+  }
+
+  return repo.updateDoctorAssignment(assignmentId, dto);
+}
+
+export async function removeDoctorAssignmentById(campaignId: string, assignmentId: string) {
+  await getCampaign(campaignId);
+  const assignment = await prisma.campaignDoctor.findUnique({ where: { id: assignmentId } });
+  if (!assignment || assignment.campaignId !== campaignId) {
+    throw AppError.notFound('Doctor assignment not found in this campaign');
+  }
+  return repo.deleteDoctorAssignmentById(assignmentId);
+}
+
+export async function bulkAssignDoctors(campaignId: string, dto: BulkAssignDoctorDto, actorId?: string) {
+  await getCampaign(campaignId);
+
+  const results: { success: boolean; doctorId: string; error?: string }[] = [];
+
+  for (const item of dto.assignments) {
+    try {
+      const doctor = await prisma.doctor.findUnique({ where: { id: item.doctorId } });
+      if (!doctor || !doctor.isActive) {
+        results.push({ success: false, doctorId: item.doctorId, error: !doctor ? 'Doctor not found' : 'Doctor inactive' });
+        continue;
+      }
+
+      if (item.sessionId) {
+        const session = await prisma.campaignSession.findFirst({ where: { id: item.sessionId, campaignId } });
+        if (!session) { results.push({ success: false, doctorId: item.doctorId, error: 'Session not found' }); continue; }
+      }
+
+      if (item.isSigningDoctor) {
+        const scope = item.sessionId ? { campaignId, sessionId: item.sessionId } : { campaignId, sessionId: null };
+        await prisma.campaignDoctor.updateMany({ where: { ...scope, isSigningDoctor: true }, data: { isSigningDoctor: false } });
+      }
+
+      await prisma.campaignDoctor.create({
+        data: {
+          campaignId,
+          doctorId: item.doctorId,
+          sessionId: item.sessionId ?? null,
+          role: item.doctorDuty.toLowerCase(),
+          doctorDuty: item.doctorDuty,
+          isSigningDoctor: item.isSigningDoctor ?? false,
+          isPrimarySupervisor: item.isPrimarySupervisor ?? false,
+          notes: item.notes ?? null,
+          assignedBy: actorId ?? null,
+        },
+      });
+      results.push({ success: true, doctorId: item.doctorId });
+    } catch (err: any) {
+      results.push({ success: false, doctorId: item.doctorId, error: err.message });
+    }
+  }
+
+  return { results, total: dto.assignments.length, succeeded: results.filter((r) => r.success).length };
+}
+
+export async function getAvailableDoctors(campaignId: string, query: AvailableDoctorsQuery = {}) {
+  await getCampaign(campaignId);
+
+  const { page, limit, skip } = parsePaginationQuery(query.page, query.limit, 20);
+
+  const assigned = await prisma.campaignDoctor.findMany({
+    where: { campaignId },
+    select: { doctorId: true }
+  });
+  const assignedIds = assigned.map((a) => a.doctorId);
+
+  const where: any = {
+    isActive: true,
+  };
+
+  if (!query.includeAssigned) {
+    where.id = { notIn: assignedIds };
+  }
+
+  if (query.search) {
+    const s = query.search.trim();
+    where.OR = [
+      { name: { contains: s, mode: 'insensitive' } },
+      { email: { contains: s, mode: 'insensitive' } },
+      { mobile: { contains: s, mode: 'insensitive' } },
+      { phone: { contains: s, mode: 'insensitive' } },
+      { licenseNumber: { contains: s, mode: 'insensitive' } },
+      { specialization: { contains: s, mode: 'insensitive' } },
+    ];
+  }
+
+  const [items, total] = await Promise.all([
+    prisma.doctor.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { name: 'asc' }
+    }),
+    prisma.doctor.count({ where })
+  ]);
+
+  return { items, meta: buildPaginationMeta(total, page, limit) };
 }
 
 export async function removeDoctorAssignment(campaignId: string, doctorId: string) {

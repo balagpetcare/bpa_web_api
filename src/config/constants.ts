@@ -30,6 +30,10 @@ export const RESOURCES = {
   CAMPAIGN_CHECKIN: 'campaign_checkin',
   CAMPAIGN_CERTIFICATES: 'campaign_certificates',
   CAMPAIGN_ANALYTICS: 'campaign_analytics',
+  CAMPAIGN_STAFF_ASSIGNMENTS: 'campaign_staff_assignments',
+  CAMPAIGN_DOCTOR_ASSIGNMENTS: 'campaign_doctor_assignments',
+  CAMPAIGN_VACCINATIONS: 'campaign_vaccinations',
+  CAMPAIGN_SCAN_LOGS: 'campaign_scan_logs',
   // Community Pet Care
   COMMUNITY_ZONES: 'community_zones',
   CONTRIBUTION_PLANS: 'contribution_plans',
@@ -60,6 +64,10 @@ export const RESOURCES = {
   // Contact Inquiry System
   CONTACT_INQUIRIES: 'contact_inquiries',
   CONTACT_INQUIRY_CONFIG: 'contact_inquiry_config',
+  CONTENT: 'content',
+  // Admin Notification & Dashboard
+  NOTIFICATIONS: 'notifications',
+  DASHBOARD: 'dashboard',
 } as const;
 
 export const ACTIONS = {

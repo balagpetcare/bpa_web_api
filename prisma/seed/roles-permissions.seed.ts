@@ -22,6 +22,7 @@ const RESOURCES = [
   'community_membership_documents', 'community_membership_dashboard',
   'community_membership_card_verification',
   'donations', 'donation_purposes', 'donation_campaigns',
+  'campaign_staff_assignments', 'campaign_scan_logs', 'campaign_vaccinations',
 ];
 
 const ACTIONS = [
@@ -67,6 +68,7 @@ const ROLE_DEFS: RoleDef[] = [
       'community_membership_documents', 'community_membership_dashboard',
       'community_membership_card_verification',
       'donations', 'donation_purposes', 'donation_campaigns',
+      'campaign_staff_assignments', 'campaign_scan_logs', 'campaign_vaccinations',
     ],
     actions: ACTIONS,
   },
@@ -91,6 +93,7 @@ const ROLE_DEFS: RoleDef[] = [
       'campaigns', 'campaign_sessions', 'campaign_services',
       'campaign_checkin', 'campaign_certificates', 'campaign_analytics',
       'campaign_registrations', 'campaign_waitlist', 'vaccination_records',
+      'campaign_staff_assignments', 'campaign_scan_logs', 'campaign_vaccinations',
       'analytics', 'sms_logs',
     ],
     actions: ['create', 'read', 'update', 'assign', 'lifecycle', 'checkin', 'issue'],
@@ -99,7 +102,8 @@ const ROLE_DEFS: RoleDef[] = [
     name: 'campaign_volunteer',
     description: 'Campaign volunteer — scan QR, check in, mark vaccinated, issue certificate',
     resources: [
-      'campaigns', 'campaign_sessions', 'campaign_checkin', 'campaign_certificates', 'pets', 'pet_owners',
+      'campaigns', 'campaign_sessions', 'campaign_checkin', 'campaign_certificates',
+      'campaign_vaccinations', 'pets', 'pet_owners',
     ],
     actions: ['read', 'checkin', 'issue'],
   },

@@ -8,7 +8,7 @@ import {
   createCampaignSchema, updateCampaignSchema, campaignListQuerySchema,
   createSessionSchema, updateSessionSchema,
   createServiceSchema, updateServiceSchema,
-  assignDoctorSchema, assignVolunteerSchema,
+  assignDoctorSchema, updateDoctorAssignmentSchema, bulkAssignDoctorSchema, assignVolunteerSchema, availableDoctorsQuerySchema,
 } from './campaigns.types';
 import {
   createCampaignHandler, listCampaignsHandler, getCampaignHandler,
@@ -17,7 +17,8 @@ import {
   completeCampaignHandler, cancelCampaignHandler, reopenCampaignHandler,
   createSessionHandler, listSessionsHandler, updateSessionHandler, deleteSessionHandler,
   createServiceHandler, listServicesHandler, updateServiceHandler, deleteServiceHandler,
-  assignDoctorHandler, listCampaignDoctorsHandler, removeDoctorHandler,
+  assignDoctorHandler, bulkAssignDoctorsHandler, listCampaignDoctorsHandler, removeDoctorHandler,
+  updateDoctorAssignmentHandler, removeDoctorAssignmentHandler, getAvailableDoctorsHandler,
   assignVolunteerHandler, listCampaignVolunteersHandler, removeVolunteerHandler,
 } from './campaigns.controller';
 import {
@@ -29,6 +30,7 @@ import {
   reorderHandler as mediaReorderHandler,
 } from './campaign-media.controller';
 import { uploadSingle } from '../../middlewares/upload';
+import staffAssignmentsRouter from '../campaign-staff-assignments/campaign-staff-assignments.router';
 
 const router = Router();
 
@@ -69,13 +71,21 @@ router.delete('/:id/services/:serviceId', validateUuid('id', 'serviceId'), autho
 
 router.get('/:id/doctors', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.READ), listCampaignDoctorsHandler);
 router.post('/:id/doctors', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.ASSIGN), validate(assignDoctorSchema), assignDoctorHandler);
-router.delete('/:id/doctors/:doctorId', validateUuid('id', 'doctorId'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.ASSIGN), removeDoctorHandler);
+router.post('/:id/doctors/bulk', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.ASSIGN), validate(bulkAssignDoctorSchema), bulkAssignDoctorsHandler);
+router.patch('/:id/doctors/:assignmentId', validateUuid('id', 'assignmentId'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.ASSIGN), validate(updateDoctorAssignmentSchema), updateDoctorAssignmentHandler);
+router.delete('/:id/doctors/:assignmentId', validateUuid('id', 'assignmentId'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.ASSIGN), removeDoctorAssignmentHandler);
+router.get('/:id/available-doctors', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.READ), validate(availableDoctorsQuerySchema, 'query'), getAvailableDoctorsHandler);
+router.delete('/:id/doctors-legacy/:doctorId', validateUuid('id', 'doctorId'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.ASSIGN), removeDoctorHandler);
 
 // ─── Volunteer Assignment ─────────────────────────────────────────
 
 router.get('/:id/volunteers', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.READ), listCampaignVolunteersHandler);
 router.post('/:id/volunteers', validateUuid('id'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.ASSIGN), validate(assignVolunteerSchema), assignVolunteerHandler);
 router.delete('/:id/volunteers/:userId', validateUuid('id', 'userId'), authorize(RESOURCES.CAMPAIGNS, ACTIONS.ASSIGN), removeVolunteerHandler);
+
+// ─── Staff Assignments ────────────────────────────────────────────
+
+router.use('/:campaignId/staff-assignments', staffAssignmentsRouter);
 
 // ─── Campaign Media ───────────────────────────────────────────────
 

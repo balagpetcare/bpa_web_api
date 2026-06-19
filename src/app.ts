@@ -39,6 +39,7 @@ import { campaignCertificatesAdminRouter, campaignCertificatesPublicRouter } fro
 import campaignAnalyticsRouter from './modules/analytics/campaign-analytics.router';
 import campaignsPublicRouter from './modules/campaigns/campaigns-public.router';
 import petsPublicRouter from './modules/pets/pets-public.router';
+import { vaccinationAdminRouter, certificateVerifyPublicRouter } from './modules/vaccination/vaccination.router';
 import { homepageAdminRouter, homepagePublicRouter } from './modules/homepage/homepage.router';
 import { communityZonesAdminRouter, communityZonesPublicRouter } from './modules/community-zones/community-zones.router';
 import { contributionPlansAdminRouter, contributionPlansPublicRouter } from './modules/contribution-plans/contribution-plans.router';
@@ -67,6 +68,12 @@ import {
   downloadWelcomePackPdfHandler,
 } from './modules/community-membership/community-membership.controller';
 import { publicReadLimiter } from './middlewares/rateLimiter';
+import notificationsRouter from './modules/notifications/notifications.router';
+import dashboardRouter from './modules/dashboard/dashboard.router';
+import { contentPublicRouter, contentAuthenticatedRouter, contentAdminRouter } from './modules/content/content.router';
+import publicAnalyticsRouter from './modules/analytics/analytics-public.router';
+import campaignFieldOpsRouter from './modules/campaign-field-ops/campaign-field-ops.router';
+import { myAssignedRouter } from './modules/campaign-staff-assignments/campaign-staff-assignments.router';
 
 const app = express();
 
@@ -130,6 +137,7 @@ app.use(`${v1}/admin/committee`, committeeRouter);
 app.use(`${v1}/admin/media`, mediaRouter);
 app.use(`${v1}/admin/seo`, seoRouter);
 app.use(`${v1}/admin/analytics`, analyticsRouter);
+app.use(`${v1}/public/analytics`, publicAnalyticsRouter);
 // ⚠️ DEPRECATED — Legacy contact form. Replaced by contact-inquiry module
 // at /api/v1/public/contact-inquiries and /api/v1/admin/contact-inquiries.
 // Kept for backward compatibility. Will be removed in a future release.
@@ -162,6 +170,15 @@ app.use(`${v1}/admin/campaign-registrations`, campaignScanRouter);
 app.use(`${v1}/volunteer`, campaignCheckinVolunteerRouter);
 app.use(`${v1}/admin`, campaignCheckinAdminRouter);
 app.use(`${v1}/admin`, campaignCertificatesAdminRouter);
+
+// ─── Vaccination Desk Operations ─────────────────────────────
+app.use(`${v1}/admin/vaccination`, vaccinationAdminRouter);
+app.use(`${v1}/public/certificates/verify`, certificateVerifyPublicRouter);
+
+// ─── Campaign Field Operations (QR, Check-in, Vaccination, Certificates) ──
+app.use(`${v1}/admin/campaigns/:campaignId`, campaignFieldOpsRouter);
+app.use(`${v1}/admin`, myAssignedRouter);
+
 app.use(`${v1}/public/campaigns`, campaignsPublicRouter);
 app.use(`${v1}/public/campaigns`, campaignCertificatesPublicRouter);
 app.use(`${v1}/public/pets`, petsPublicRouter);
@@ -222,8 +239,17 @@ app.use(`${v1}/admin/donations`, donationsAdminRouter);
 app.use(`${v1}/public/contact-inquiries`, contactInquiryPublicRouter);
 app.use(`${v1}/admin/contact-inquiries`, contactInquiryAdminRouter);
 
+// ─── Content Hub ────────────────────────────────────────────────
+app.use(`${v1}/public`, contentPublicRouter);
+app.use(`${v1}/content`, contentAuthenticatedRouter);
+app.use(`${v1}/admin/content`, contentAdminRouter);
+
 // ─── Authenticated User (me) ────────────────────────────────────
 app.use(`${v1}/me`, meRouter);
+
+// ─── Admin Notification & Dashboard ────────────────────────────
+app.use(`${v1}/admin/notifications`, notificationsRouter);
+app.use(`${v1}/admin/dashboard`, dashboardRouter);
 
 // ─── Error Handling ─────────────────────────────────────────────
 app.use(notFound);

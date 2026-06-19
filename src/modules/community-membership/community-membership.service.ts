@@ -1,6 +1,7 @@
 import { randomUUID, createHmac } from 'crypto';
 import { prisma } from '../../database/prisma';
 import { config } from '../../config';
+import { notifyAdmins } from '../notifications/notifications.service';
 import { AppError } from '../../utils/AppError';
 import { initializeEpsPayment, generateMerchantTxnId, isEPSConfigured, getEpsGatewayBase } from '../../services/eps.service';
 import { createPayment, updatePaymentEpsTxnId, updatePaymentStatus } from '../payments/payments.repository';
@@ -236,6 +237,19 @@ export async function initiatePurchase(dto: InitiatePurchaseDto, ipAddress?: str
       dto.petCount ? `Pets: ${dto.petCount}` : null,
       zone ? `Zone: ${zone.name}` : null,
     ].filter(Boolean).join(' | ') || null,
+  });
+
+  notifyAdmins({
+    type: 'membership_purchase',
+    title: `New Membership: ${tier.nameEn}`,
+    message: `${dto.memberName} initiated ${tier.nameEn} membership (BDT ${amount}). Pending payment.`,
+    module: 'community-membership',
+    entityType: 'CommunityMembershipPurchase',
+    entityId: purchase.id,
+    priority: 'normal',
+    actionUrl: `/community-membership/${purchase.id}`,
+    dedupeKey: `membership:${purchase.id}:initiated`,
+    createdForRole: 'admin',
   });
 
   // If EPS is not configured or disabled, return as pending for manual payment

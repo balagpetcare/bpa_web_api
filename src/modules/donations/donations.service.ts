@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { AppError } from '../../utils/AppError';
+import { notifyAdmins } from '../notifications/notifications.service';
 import * as repo from './donations.repository';
 import {
   initializeEpsPayment, generateMerchantTxnId, isEpsMockModeEnabled,
@@ -185,6 +186,19 @@ export async function initializeDonation(params: {
       },
     });
 
+    notifyAdmins({
+      type: 'donation_new',
+      title: `New Donation: BDT ${params.amount.toLocaleString()}`,
+      message: `${params.isAnonymous ? 'Anonymous' : params.donorName} donated BDT ${params.amount.toLocaleString()}. Ref: ${referenceNo}`,
+      module: 'donations',
+      entityType: 'Donation',
+      entityId: createdDonation.id,
+      priority: params.amount >= 5000 ? 'high' : 'normal',
+      actionUrl: `/donations/${createdDonation.id}`,
+      dedupeKey: `donation:${createdDonation.id}:new`,
+      createdForRole: 'admin',
+    });
+
     return { payment: createdPayment, donation: createdDonation };
   });
 
@@ -335,6 +349,19 @@ export async function settleDonationPayment(paymentId: string) {
       idempotencyKey: `donation:receipt:${donation.id}`,
     }).catch(console.error);
   }
+
+  notifyAdmins({
+    type: 'donation_payment_completed',
+    title: `Donation Paid: ${amountFmt}`,
+    message: `${donation.isAnonymous ? 'Anonymous' : donation.donorName} — ${amountFmt}. Ref: ${donation.referenceNo}`,
+    module: 'donations',
+    entityType: 'Donation',
+    entityId: donation.id,
+    priority: Number(donation.amount) >= 5000 ? 'high' : 'normal',
+    actionUrl: `/donations/${donation.id}`,
+    dedupeKey: `donation:${donation.id}:paid`,
+    createdForRole: 'admin',
+  });
 }
 
 

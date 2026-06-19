@@ -34,7 +34,7 @@ export async function createUserHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const user = await usersService.createUser(req.body);
+    const user = await usersService.createUser(req.body, req.user as any);
     sendCreated(res, user);
   } catch (err) {
     next(err);
@@ -47,7 +47,7 @@ export async function updateUserHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const user = await usersService.updateUser(req.params.id, req.body);
+    const user = await usersService.updateUser(req.params.id, req.body, req.user as any);
     sendSuccess(res, user);
   } catch (err) {
     next(err);
@@ -60,7 +60,7 @@ export async function deleteUserHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    await usersService.deleteUser(req.params.id);
+    await usersService.deleteUser(req.params.id, req.user as any);
     sendNoContent(res);
   } catch (err) {
     next(err);

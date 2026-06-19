@@ -1,5 +1,6 @@
 import { Request } from 'express';
 import { AppError } from '../../utils/AppError';
+import { notifyAdmins } from '../notifications/notifications.service';
 import { sendMail } from '../mail/mail-send.service';
 import { sendTransactionalSms } from '../../services/sms.service';
 import {
@@ -39,6 +40,20 @@ export async function submitInquiry(dto: SubmitInquiryDto, req: Request) {
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip;
   const userAgent = req.headers['user-agent'];
   const result = await createInquiry(dto, ip, userAgent);
+
+  notifyAdmins({
+    type: 'contact_inquiry',
+    title: `New Contact Inquiry: ${dto.subject ?? '(no subject)'}`,
+    message: `From ${dto.name} — ${dto.subject ?? 'General inquiry'}`,
+    module: 'contact-inquiry',
+    entityType: 'ContactInquiry',
+    entityId: result.id,
+    priority: (result as any).priority === 'urgent' ? 'high' : 'normal',
+    actionUrl: `/contact-inquiries/${result.id}`,
+    dedupeKey: `contact_inquiry:${result.id}:new`,
+    createdForRole: 'admin',
+  });
+
   return result;
 }
 
