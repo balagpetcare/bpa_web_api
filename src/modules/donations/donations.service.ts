@@ -92,28 +92,15 @@ export async function initializeDonation(params: {
   // Pre-flight: verify payment gateway is configured before touching the DB
   if (!isEpsMockModeEnabled()) {
     const missingCreds = getEPSMissingCredentials();
-    const epsDebugCtx = {
-      NODE_ENV: config.NODE_ENV,
-      DONATION_PAYMENT_MODE: config.DONATION_PAYMENT_MODE ?? '(not set)',
-      PAYMENT_PROVIDER: config.PAYMENT_PROVIDER ?? '(not set)',
-      EPS_ENABLED: config.EPS_ENABLED,
-      PAYMENT_CHANNEL_MODE: config.PAYMENT_CHANNEL_MODE,
-      EPS_BASE_URL_exists: !!(process.env.EPS_BASE_URL),
-      EPS_MERCHANT_ID_exists: !!config.EPS_MERCHANT_ID,
-      EPS_STORE_ID_exists: !!config.EPS_STORE_ID,
-      EPS_USERNAME_exists: !!config.EPS_USERNAME,
-      EPS_PASSWORD_exists: !!config.EPS_PASSWORD,
-      EPS_HASH_KEY_exists: !!config.EPS_HASH_KEY,
-    };
     if (missingCreds.length) {
-      console.error('[Donations] EPS credentials missing:', { ...epsDebugCtx, missingCreds });
+      console.error('[Donations] EPS credentials missing:', missingCreds.join(', '));
       throw new AppError(
         503, 'EPS_CONFIG_MISSING',
         `Payment gateway credentials not configured. Missing env vars: ${missingCreds.join(', ')}`,
       );
     }
     if (!isDonationEPSMode()) {
-      console.error('[Donations] EPS gateway not enabled for donations:', epsDebugCtx);
+      console.error('[Donations] EPS gateway not enabled for donations.');
       throw new AppError(
         503, 'EPS_NOT_ENABLED',
         'Payment gateway is not enabled for donations. ' +
@@ -253,20 +240,7 @@ export async function initializeDonation(params: {
     };
   } catch (error) {
     const epsErrMsg = error instanceof Error ? error.message : String(error);
-    console.error('[Donations] EPS initializePayment failed:', {
-      NODE_ENV: config.NODE_ENV,
-      DONATION_PAYMENT_MODE: config.DONATION_PAYMENT_MODE ?? '(not set)',
-      PAYMENT_PROVIDER: config.PAYMENT_PROVIDER ?? '(not set)',
-      EPS_ENABLED: config.EPS_ENABLED,
-      PAYMENT_CHANNEL_MODE: config.PAYMENT_CHANNEL_MODE,
-      EPS_BASE_URL_exists: !!(process.env.EPS_BASE_URL),
-      EPS_MERCHANT_ID_exists: !!config.EPS_MERCHANT_ID,
-      EPS_STORE_ID_exists: !!config.EPS_STORE_ID,
-      EPS_USERNAME_exists: !!config.EPS_USERNAME,
-      EPS_PASSWORD_exists: !!config.EPS_PASSWORD,
-      EPS_HASH_KEY_exists: !!config.EPS_HASH_KEY,
-      epsError: epsErrMsg,
-    });
+    console.error('[Donations] EPS initializePayment failed:', { error: epsErrMsg, env: config.NODE_ENV });
     await Promise.all([
       repo.updatePaymentForDonation(payment.id, {
         status: 'failed',

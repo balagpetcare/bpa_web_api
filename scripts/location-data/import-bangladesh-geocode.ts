@@ -9,7 +9,7 @@
 import 'dotenv/config';
 import { PrismaClient, LocationType } from '@prisma/client';
 
-const prisma = new PrismaClient();
+const cliPrisma = new PrismaClient();
 
 const SOURCE = 'nuhil/bangladesh-geocode';
 const BASE_RAW = 'https://raw.githubusercontent.com/nuhil/bangladesh-geocode/master';
@@ -48,6 +48,7 @@ async function fetchRows<T>(url: string): Promise<T[]> {
 // ── Upsert one location node ───────────────────────────────────────────────────
 
 async function upsertLocation(data: {
+  prisma: PrismaClient;
   sourceId: string;
   type: LocationType;
   nameEn: string;
@@ -57,13 +58,13 @@ async function upsertLocation(data: {
   lat?: number | null;
   lon?: number | null;
 }): Promise<string> {
-  const existing = await prisma.location.findFirst({
+  const existing = await data.prisma.location.findFirst({
     where: { source: SOURCE, sourceId: data.sourceId, type: data.type },
     select: { id: true },
   });
 
   if (existing) {
-    await prisma.location.update({
+    await data.prisma.location.update({
       where: { id: existing.id },
       data: {
         nameEn: data.nameEn,
@@ -78,7 +79,7 @@ async function upsertLocation(data: {
     return existing.id;
   }
 
-  const created = await prisma.location.create({
+  const created = await data.prisma.location.create({
     data: {
       sourceId: data.sourceId,
       source: SOURCE,
@@ -106,7 +107,7 @@ interface RawDivision {
   url?: string;
 }
 
-async function importDivisions(): Promise<Map<string, string>> {
+async function importDivisions(prisma: PrismaClient): Promise<Map<string, string>> {
   console.log('  Importing divisions…');
   const rows: RawDivision[] = await fetchRows(`${BASE_RAW}/divisions/divisions.json`);
 
@@ -114,6 +115,7 @@ async function importDivisions(): Promise<Map<string, string>> {
 
   for (const row of rows) {
     const dbId = await upsertLocation({
+      prisma,
       sourceId: row.id,
       type: LocationType.DIVISION,
       nameEn: row.name,
@@ -141,6 +143,7 @@ interface RawDistrict {
 }
 
 async function importDistricts(
+  prisma: PrismaClient,
   divisionMap: Map<string, string>,
 ): Promise<Map<string, string>> {
   console.log('  Importing districts…');
@@ -154,6 +157,7 @@ async function importDistricts(
     if (!parentId) { skipped++; continue; }
 
     const dbId = await upsertLocation({
+      prisma,
       sourceId: row.id,
       type: LocationType.DISTRICT,
       nameEn: row.name,
@@ -181,6 +185,7 @@ interface RawUpazila {
 }
 
 async function importUpazilas(
+  prisma: PrismaClient,
   districtMap: Map<string, string>,
 ): Promise<Map<string, string>> {
   console.log('  Importing upazilas…');
@@ -195,6 +200,7 @@ async function importUpazilas(
     if (!parentId) { skipped++; continue; }
 
     const dbId = await upsertLocation({
+      prisma,
       sourceId: row.id,
       type: LocationType.UPAZILA,
       nameEn: row.name,
@@ -223,7 +229,7 @@ interface RawUnion {
   url?: string;
 }
 
-async function importUnions(upazilaMap: Map<string, string>): Promise<void> {
+async function importUnions(prisma: PrismaClient, upazilaMap: Map<string, string>): Promise<number> {
   console.log('  Importing unions (this takes a moment)…');
   const rows: RawUnion[] = await fetchRows(`${BASE_RAW}/unions/unions.json`);
 
@@ -235,6 +241,7 @@ async function importUnions(upazilaMap: Map<string, string>): Promise<void> {
     if (!parentId) { skipped++; continue; }
 
     await upsertLocation({
+      prisma,
       sourceId: row.id,
       type: LocationType.UNION,
       nameEn: row.name,
@@ -249,26 +256,39 @@ async function importUnions(upazilaMap: Map<string, string>): Promise<void> {
 
   process.stdout.write('\n');
   console.log(`  ✓ ${imported} unions (${skipped} skipped)`);
+  return imported;
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 
-export async function importBangladeshGeocode(): Promise<void> {
+export async function importBangladeshGeocode(prisma: PrismaClient = cliPrisma): Promise<{
+  divisions: number;
+  districts: number;
+  upazilas: number;
+  unions: number;
+}> {
   console.log('\n[BD Geocode] Starting import from nuhil/bangladesh-geocode…');
   const t0 = Date.now();
 
-  const divisionMap = await importDivisions();
-  const districtMap = await importDistricts(divisionMap);
-  const upazilaMap  = await importUpazilas(districtMap);
-  await importUnions(upazilaMap);
+  const divisionMap = await importDivisions(prisma);
+  const districtMap = await importDistricts(prisma, divisionMap);
+  const upazilaMap  = await importUpazilas(prisma, districtMap);
+  const unions = await importUnions(prisma, upazilaMap);
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`[BD Geocode] Done in ${elapsed}s\n`);
+
+  return {
+    divisions: divisionMap.size,
+    districts: districtMap.size,
+    upazilas: upazilaMap.size,
+    unions,
+  };
 }
 
 // Allow direct run: ts-node scripts/location-data/import-bangladesh-geocode.ts
 if (require.main === module) {
   importBangladeshGeocode()
     .catch((err) => { console.error(err); process.exit(1); })
-    .finally(() => prisma.$disconnect());
+    .finally(() => cliPrisma.$disconnect());
 }

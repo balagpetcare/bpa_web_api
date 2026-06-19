@@ -221,14 +221,20 @@ export async function syncAllActiveMailboxes() {
     select: { id: true, emailAddress: true },
   });
 
-  console.log(`[MailboxSync] Syncing ${activeMailboxes.length} active mailboxes...`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[MailboxSync] Syncing ${activeMailboxes.length} active mailboxes...`);
+  }
   
   for (const mb of activeMailboxes) {
     try {
       const res = await syncMailbox(mb.id, 50);
-      console.log(`[MailboxSync] Synced ${mb.emailAddress}: ${res.emailsSynced} new messages.`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[MailboxSync] Synced ${mb.emailAddress}: ${res.emailsSynced} new messages.`);
+      }
     } catch (err: any) {
-      console.error(`[MailboxSync] Failed to sync ${mb.emailAddress}:`, err.message);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error(`[MailboxSync] Failed to sync ${mb.emailAddress}:`, err.message);
+      }
     }
   }
 }

@@ -52,15 +52,15 @@ import {
   handleDeletePriorityRule,
 } from './contact-inquiry.controller';
 
+// ─── Public router (mounted at /api/v1/public/contact-inquiries) ──
+
+export const contactInquiryPublicRouter = Router();
+contactInquiryPublicRouter.post('/', publicFormLimiter, validate(submitInquirySchema), handlePublicSubmit);
+contactInquiryPublicRouter.get('/config', handleGetPublicConfig);
+
+// ─── Admin router (mounted at /api/v1/admin/contact-inquiries) ────
+
 const router = Router();
-
-// ─── Public endpoints ─────────────────────────────────────────────
-
-router.post('/public', publicFormLimiter, validate(submitInquirySchema), handlePublicSubmit);
-router.get('/public/config', handleGetPublicConfig);
-
-// ─── Admin endpoints ──────────────────────────────────────────────
-
 router.use(authenticate);
 
 // Inbox
@@ -108,4 +108,4 @@ router.get('/config/priority-rules/:id', authorize(RESOURCES.CONTACT_INQUIRY_CON
 router.patch('/config/priority-rules/:id', authorize(RESOURCES.CONTACT_INQUIRY_CONFIG, ACTIONS.UPDATE), validate(upsertPriorityRuleSchema.partial()), handleUpdatePriorityRule);
 router.delete('/config/priority-rules/:id', authorize(RESOURCES.CONTACT_INQUIRY_CONFIG, ACTIONS.DELETE), handleDeletePriorityRule);
 
-export default router;
+export const contactInquiryAdminRouter = router;

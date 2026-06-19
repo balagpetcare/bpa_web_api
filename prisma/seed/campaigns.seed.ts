@@ -40,6 +40,16 @@ const VACCINES = [
 
 export async function seedCampaigns(prisma: PrismaClient) {
   let vaccineCreated = 0, vaccineSkipped = 0;
+  const adminEmail = (
+    process.env['SEED_ADMIN_EMAIL'] ??
+    process.env['ROOT_ADMIN_EMAIL'] ??
+    'admin@bpa.org'
+  ).toLowerCase().trim();
+  const adminPassword = (
+    process.env['SEED_ADMIN_PASSWORD'] ??
+    process.env['ROOT_ADMIN_PASSWORD'] ??
+    ''
+  );
 
   // ── 1. Vaccine Catalog ────────────────────────────────────────────────────
   const vaccineMap: Record<string, string> = {};
@@ -134,12 +144,27 @@ export async function seedCampaigns(prisma: PrismaClient) {
   let campaignId: string;
   if (existingCampaign) {
     campaignId = existingCampaign.id;
+    // Ensure status is at least registration_open so it appears in public listings
+    if (existingCampaign.status === 'draft') {
+      await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'registration_open' } });
+    }
   } else {
-    const firstUser = await prisma.user.findFirst();
-    const createdById = firstUser?.id;
+    if (!adminPassword) {
+      console.warn('  [campaigns] WARNING: SEED_ADMIN_PASSWORD/ROOT_ADMIN_PASSWORD is missing - campaign seed skipped until the admin user can be created.');
+      return {
+        vaccines: { created: vaccineCreated, skipped: vaccineSkipped },
+        certTemplate: certTemplateId ? 'upserted' : 'failed',
+        campaign: 'skipped_no_admin_password',
+        services: 0,
+        sessions: 0,
+      };
+    }
+
+    const adminUser = await prisma.user.findUnique({ where: { email: adminEmail } });
+    const createdById = adminUser?.id;
     if (!createdById) {
-      console.warn('  [campaigns] No users in DB — Cat Vaccination Campaign creation skipped. Re-run db:seed after admin user exists.');
-      return { vaccines: { created: vaccineCreated, skipped: vaccineSkipped }, certTemplate: certTemplateId ? 'upserted' : 'failed', campaign: 'skipped_no_user', services: 0, sessions: 0 };
+      console.warn(`  [campaigns] Admin user "${adminEmail}" not found - Cat Vaccination Campaign creation skipped. Re-run db:seed after admin user exists.`);
+      return { vaccines: { created: vaccineCreated, skipped: vaccineSkipped }, certTemplate: certTemplateId ? 'upserted' : 'failed', campaign: 'skipped_no_admin_user', services: 0, sessions: 0 };
     }
     const campaign = await prisma.campaign.create({
       data: {
@@ -149,7 +174,7 @@ export async function seedCampaigns(prisma: PrismaClient) {
         description:
           'BPA\'s first dedicated cat vaccination campaign across Dhaka city. Free and subsidised rabies, FVRCP, and deworming services for registered cats.',
         campaignType: 'vaccination',
-        status: 'draft',
+        status: 'registration_open',
         startDate: new Date('2026-07-01'),
         endDate: new Date('2026-12-31'),
         registrationOpenAt: new Date('2026-06-15'),

@@ -1,5 +1,4 @@
 import { config } from '../config';
-import { renderEmailLayout } from '../modules/emails/layouts/render-email-layout';
 import { EmailTemplateRegistry } from '../modules/emails/email-template.registry';
 
 export interface EmailOptions {
@@ -14,41 +13,26 @@ export interface EmailOptions {
 }
 
 export async function sendEmail(options: EmailOptions): Promise<void> {
-  const locale = options.locale || 'en';
-  let finalSubject = options.subject || '';
-  let bodyHtml = options.html || '';
-  let plainText = options.text || '';
-  let previewText = '';
-
   if (options.template) {
     const templateFn = EmailTemplateRegistry[options.template];
     if (!templateFn) {
       throw new Error(`Email template ${options.template} not found in registry.`);
     }
-    const result = templateFn(options.data || {});
-    finalSubject = options.subject || result.subject;
-    bodyHtml = result.bodyHtml;
-    plainText = result.plainText;
-    previewText = result.previewText;
   }
-
-  const wrappedHtml = await renderEmailLayout({
-    locale,
-    subject: finalSubject,
-    previewText,
-    bodyHtml,
-    layoutKey: options.layoutKey
-  });
 
   if (!config.EMAIL_HOST || !config.EMAIL_USER) {
     console.warn('[EmailService] Email not configured — skipping send');
-    console.log(`[EmailService] Would send email to ${options.to}: ${finalSubject} | Layout HTML length: ${wrappedHtml.length} | Plain text length: ${plainText.length}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[EmailService] Would send email to ${options.to}: ${options.subject || '(no subject)'}`);
+    }
     return;
   }
 
   // Placeholder: integrate nodemailer or an HTTP email provider here.
   // The interface is provider-agnostic; swap the transport without changing callers.
-  console.log(`[EmailService] Sending email to ${options.to}: ${finalSubject} | Layout HTML length: ${wrappedHtml.length}`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[EmailService] Sending email to ${options.to}: ${options.subject || '(no subject)'}`);
+  }
 }
 
 export async function sendWelcomeEmail(to: string, name: string): Promise<void> {

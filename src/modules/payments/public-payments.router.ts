@@ -77,7 +77,7 @@ router.all('/eps/callback', async (req: Request, res: Response, next: NextFuncti
     const data = getRequestData(req);
     const ref = getMerchantTxnId(data);
     if (!ref) {
-      console.error('[EPS Callback] No transaction reference found in callback request:', data);
+      console.error('[EPS Callback] No transaction reference found in callback request.');
       return res.redirect(`${config.FRONTEND_URL.replace(/\/$/, '')}/community-pet-care/payment/failed?reason=missing_reference`);
     }
 
@@ -125,7 +125,7 @@ router.post('/eps/ipn', async (req: Request, res: Response, next: NextFunction):
     const data = getRequestData(req);
     const ref = getMerchantTxnId(data);
     if (!ref) {
-      console.error('[EPS IPN] No transaction reference found in IPN request:', data);
+      console.error('[EPS IPN] No transaction reference found in IPN request.');
       return res.status(400).json({ success: false, message: 'No transaction reference found' });
     }
 

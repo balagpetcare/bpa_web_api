@@ -14,18 +14,20 @@
  */
 
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import { LocationType, PrismaClient } from '@prisma/client';
 
 import { seedRolesAndPermissions } from './roles-permissions.seed';
 import { seedAdminUser } from './users.seed';
 import { seedSiteSettings } from './site-settings.seed';
 import { seedLocations } from './locations.seed';
+import { seedLocationNodes } from './location-nodes.seed';
 import { seedCampaigns } from './campaigns.seed';
 import { seedCommunity } from './community.seed';
 import { seedDonations } from './donations.seed';
 import { seedCms } from './cms.seed';
 import { seedPayments } from './payments.seed';
 import { seedMailSystem } from './mail.seed';
+import { seedContactInquiryConfig } from './contact-inquiry.seed';
 
 const prisma = new PrismaClient();
 
@@ -39,6 +41,67 @@ function section(title: string) {
   console.log(line());
 }
 
+const CRITICAL_MODEL_COUNTS: Array<{ label: string; delegate: string }> = [
+  { label: 'Roles', delegate: 'role' },
+  { label: 'Permissions', delegate: 'permission' },
+  { label: 'Role permissions', delegate: 'rolePermission' },
+  { label: 'Users', delegate: 'user' },
+  { label: 'Site settings', delegate: 'siteSettings' },
+  { label: 'Countries', delegate: 'country' },
+  { label: 'Legacy divisions', delegate: 'division' },
+  { label: 'Legacy districts', delegate: 'district' },
+  { label: 'Legacy city corporations', delegate: 'cityCorporation' },
+  { label: 'Legacy city zones', delegate: 'zone' },
+  { label: 'Vaccine catalog', delegate: 'vaccineCatalog' },
+  { label: 'Certificate templates', delegate: 'certificateTemplate' },
+  { label: 'Campaigns', delegate: 'campaign' },
+  { label: 'Campaign services', delegate: 'campaignService' },
+  { label: 'Campaign sessions', delegate: 'campaignSession' },
+  { label: 'Community zones', delegate: 'communityZone' },
+  { label: 'Contribution plans', delegate: 'contributionPlan' },
+  { label: 'Membership programs', delegate: 'communityMembershipProgram' },
+  { label: 'Membership tiers', delegate: 'communityMembershipTier' },
+  { label: 'Membership benefits', delegate: 'communityMembershipBenefit' },
+  { label: 'Donation purposes', delegate: 'donationPurpose' },
+  { label: 'Donation campaigns', delegate: 'donationCampaign' },
+  { label: 'Donation page settings', delegate: 'donationPageSetting' },
+  { label: 'Donation impact stories', delegate: 'donationImpactStory' },
+  { label: 'Donation QR codes', delegate: 'donationQrCode' },
+  { label: 'News categories', delegate: 'newsCategory' },
+  { label: 'News tags', delegate: 'newsTag' },
+  { label: 'Homepages', delegate: 'homepage' },
+  { label: 'Homepage sections', delegate: 'homepageSection' },
+  { label: 'Hero slides', delegate: 'heroSlide' },
+  { label: 'Footer configs', delegate: 'footerConfig' },
+  { label: 'Footer link groups', delegate: 'footerLinkGroup' },
+  { label: 'Footer links', delegate: 'footerLink' },
+  { label: 'Pet census campaigns', delegate: 'petCensusCampaign' },
+  { label: 'Payment placeholders', delegate: 'petSmartSyncSetting' },
+  { label: 'Email layouts', delegate: 'emailLayoutSetting' },
+  { label: 'Mail accounts', delegate: 'mailAccount' },
+  { label: 'Contact types', delegate: 'contactType' },
+  { label: 'Inquiry categories', delegate: 'inquiryCategory' },
+];
+
+async function printFinalCounts(prisma: PrismaClient) {
+  section('Final Critical Model Counts');
+
+  for (const item of CRITICAL_MODEL_COUNTS) {
+    const delegate = (prisma as unknown as Record<string, { count: () => Promise<number> }>)[item.delegate];
+    const count = await delegate.count();
+    console.log(`  ${item.label.padEnd(28)} ${count}`);
+  }
+
+  console.log('  ' + 'Location DIVISION'.padEnd(28) + await prisma.location.count({ where: { type: LocationType.DIVISION, isActive: true } }));
+  console.log('  ' + 'Location DISTRICT'.padEnd(28) + await prisma.location.count({ where: { type: LocationType.DISTRICT, isActive: true } }));
+  console.log('  ' + 'Location UPAZILA'.padEnd(28) + await prisma.location.count({ where: { type: LocationType.UPAZILA, isActive: true } }));
+  console.log('  ' + 'Location THANA'.padEnd(28) + await prisma.location.count({ where: { type: LocationType.THANA, isActive: true } }));
+  console.log('  ' + 'Location UNION'.padEnd(28) + await prisma.location.count({ where: { type: LocationType.UNION, isActive: true } }));
+  console.log('  ' + 'Location CITY_CORPORATION'.padEnd(28) + await prisma.location.count({ where: { type: LocationType.CITY_CORPORATION, isActive: true } }));
+  console.log('  ' + 'Location CITY_ZONE'.padEnd(28) + await prisma.location.count({ where: { type: LocationType.CITY_ZONE, isActive: true } }));
+  console.log('  ' + 'Location WARD'.padEnd(28) + await prisma.location.count({ where: { type: LocationType.WARD, isActive: true } }));
+}
+
 async function main() {
   console.log('\n' + line('═'));
   console.log(' BPA Database Seeder — Complete Idempotent Setup');
@@ -46,7 +109,7 @@ async function main() {
   console.log(line('═'));
 
   // ── 1. Roles & Permissions ────────────────────────────────────────────────
-  section('1/10  Roles & Permissions');
+  section('1/11  Roles & Permissions');
   const rolesResult = await seedRolesAndPermissions(prisma);
   console.log(`  ✓ Permissions  : ${rolesResult.permissions.total} (all resources × actions)`);
   console.log(`  ✓ Roles        : ${rolesResult.roles.upserted} upserted`);
@@ -54,12 +117,13 @@ async function main() {
   console.log(`    Roles: super_admin, admin, editor, viewer, campaign_manager, campaign_volunteer, community_fund_admin, community_fund_viewer`);
 
   // ── 2. Admin User ──────────────────────────────────────────────────────────
-  section('2/10  Admin User');
+  section('2/11  Admin User');
   const userResult = await seedAdminUser(prisma);
   if (userResult.skipped) {
     console.log(`  ⚠  Admin user skipped: ${userResult.reason}`);
     if (userResult.reason === 'no_password') {
       console.log('     Set SEED_ADMIN_PASSWORD (or ROOT_ADMIN_PASSWORD) in .env and re-run.');
+      console.log('     Campaign seed will create the vaccine catalog/certificate template, then skip campaign creation until the admin user exists.');
     }
   } else {
     console.log(`  ✓ Admin email  : ${userResult.email}`);
@@ -68,12 +132,12 @@ async function main() {
   }
 
   // ── 3. Site Settings ──────────────────────────────────────────────────────
-  section('3/10  Site Settings');
+  section('3/11  Site Settings');
   const settingsResult = await seedSiteSettings(prisma);
   console.log(`  ✓ SiteSettings singleton upserted (id=default): ${settingsResult.upserted} row`);
 
   // ── 4. Location Hierarchy ─────────────────────────────────────────────────
-  section('4/10  Location Hierarchy');
+  section('4/11  Location Hierarchy');
   const locResult = await seedLocations(prisma);
   console.log(`  ✓ Country      : ${locResult.country}`);
   console.log(`  ✓ Divisions    : ${locResult.divisions}`);
@@ -81,8 +145,20 @@ async function main() {
   console.log(`  ✓ City Corps   : ${locResult.cityCorporations} (DNCC, DSCC)`);
   console.log(`  ✓ Zones        : ${locResult.zones} (DNCC×10 + DSCC×10)`);
 
-  // ── 5. Campaigns & Vaccines ───────────────────────────────────────────────
-  section('5/10  Campaigns & Vaccine Catalog');
+  // ── 5. Location Nodes (unified tree from flat hierarchy) ──────────────────
+  section('5/11  Location Nodes (unified tree)');
+  const nodeResult = await seedLocationNodes(prisma);
+  console.log(`  Active tree counts include ${nodeResult.upazilas} upazilas, ${nodeResult.unions} unions, and ${nodeResult.wards} wards`);
+  if (nodeResult.deactivatedLegacyNodes > 0) {
+    console.log(`  Legacy subset nodes deactivated: ${nodeResult.deactivatedLegacyNodes}`);
+  }
+  console.log(`  ✓ Divisions    : ${nodeResult.divisions} nodes`);
+  console.log(`  ✓ Districts    : ${nodeResult.districts} nodes`);
+  console.log(`  ✓ City Corps   : ${nodeResult.cityCorporations} nodes`);
+  console.log(`  ✓ Zones        : ${nodeResult.zones} nodes`);
+
+  // ── 6. Campaigns & Vaccines ───────────────────────────────────────────────
+  section('6/11  Campaigns & Vaccine Catalog');
   const campResult = await seedCampaigns(prisma);
   console.log(`  ✓ Vaccines     : ${campResult.vaccines.created} created, ${campResult.vaccines.skipped} already existed`);
   console.log(`  ✓ Cert template: ${campResult.certTemplate}`);
@@ -90,7 +166,7 @@ async function main() {
   console.log(`  ✓ Svcs/Sessions: ${campResult.services} services, ${campResult.sessions} session(s)`);
 
   // ── 6. Community & Membership ─────────────────────────────────────────────
-  section('6/10  Community & Membership Engine');
+  section('7/11  Community & Membership Engine');
   const commResult = await seedCommunity(prisma);
   console.log(`  ✓ Community zones        : ${commResult.zones}`);
   console.log(`  ✓ Contribution plan      : ${commResult.contributionPlan}`);
@@ -106,7 +182,7 @@ async function main() {
   console.log(`  ✓ Roadmap items          : ${commResult.roadmap} new`);
 
   // ── 7. Donations ──────────────────────────────────────────────────────────
-  section('7/10  Donation System');
+  section('8/11  Donation System');
   const donResult = await seedDonations(prisma);
   console.log(`  ✓ Purposes         : ${donResult.purposes}`);
   console.log(`  ✓ Campaigns        : ${donResult.campaigns}`);
@@ -116,7 +192,7 @@ async function main() {
   console.log(`  ✓ Transparency rpt : ${donResult.transparency}`);
 
   // ── 8. CMS ────────────────────────────────────────────────────────────────
-  section('8/10  CMS (Homepage, Hero Slides, Footer, News)');
+  section('9/11  CMS (Homepage, Hero Slides, Footer, News)');
   const cmsResult = await seedCms(prisma);
   console.log(`  ✓ News categories  : ${cmsResult.categories}`);
   console.log(`  ✓ News tags        : ${cmsResult.tags}`);
@@ -127,17 +203,25 @@ async function main() {
   console.log(`  ✓ Pet Census setup : ${cmsResult.petCensus}`);
 
   // ── 9. Payment / Integration Placeholders ─────────────────────────────────
-  section('9/10  Payment & Integration Settings');
+  section('10/11 Payment & Integration Settings');
   const payResult = await seedPayments(prisma);
   console.log(`  ✓ PSS settings: ${payResult.pssSettings.upserted} placeholder keys upserted`);
   console.log(`    (Activate via admin panel → PetSmart → Settings)`);
 
   // ── 10. Mail & Communications System ──────────────────────────────────────
-  section('10/10 Mail & Communications System');
+  section('11/11 Mail & Communications System');
   const mailResult = await seedMailSystem(prisma);
   console.log(`  ✓ Email Layouts    : ${mailResult.emailLayouts} layouts seeded`);
   console.log(`  ✓ Mail Accounts    : ${mailResult.mailAccounts} accounts seeded`);
   console.log('  Mail accounts seeded inactive; update passwords from Admin Panel.');
+
+  // ── 11. Contact Inquiry Config ─────────────────────────────────────────────
+  section('12/12 Contact Inquiry Config');
+  const ciResult = await seedContactInquiryConfig(prisma);
+  console.log(`  ✓ Contact types    : ${ciResult.types.created} created, ${ciResult.types.skipped} already existed`);
+  console.log(`  ✓ Inquiry categories: ${ciResult.categories.created} created, ${ciResult.categories.skipped} already existed`);
+
+  await printFinalCounts(prisma);
 
   // ── Summary ────────────────────────────────────────────────────────────────
   console.log('\n' + line('═'));
@@ -145,10 +229,10 @@ async function main() {
   console.log(` Finished: ${new Date().toISOString()}`);
   console.log(line('═'));
   console.log('\n Next steps:');
-  console.log('  1. Verify admin login at /admin → email from SEED_ADMIN_EMAIL');
+  console.log('  1. Add SEED_ADMIN_EMAIL + SEED_ADMIN_PASSWORD to .env, then re-run db:seed to create the admin user');
   console.log('  2. Upload real images via Admin → Media for hero slides');
-  console.log('  3. Set EPS_ENABLED=true and payment credentials in .env for payments');
-  console.log('  4. Publish the Cat Vaccination Campaign 2026 from Admin → Campaigns');
+  console.log('  3. Confirm EPS payment credentials in .env for live donations');
+  console.log('  4. Campaign "Cat Vaccination Dhaka 2026" is seeded as registration_open — publish sessions from Admin when ready');
   console.log('  5. Run: npx prisma studio  — to inspect seeded data visually');
   console.log('');
 }

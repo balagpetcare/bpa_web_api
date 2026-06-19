@@ -1,3 +1,15 @@
+/**
+ * ⚠️ DEPRECATED — Legacy contact form module.
+ *
+ * Replaced by the contact-inquiry module at:
+ *   - POST   /api/v1/public/contact-inquiries   (public submit)
+ *   - GET    /api/v1/public/contact-inquiries/config
+ *   - GET    /api/v1/admin/contact-inquiries     (admin inbox)
+ *
+ * Kept for backward compatibility with any clients still calling the old
+ * /api/v1/contacts endpoints. Will be removed in a future release.
+ */
+
 import { Router } from 'express';
 import { authenticate } from '../../middlewares/authenticate';
 import { authorize } from '../../middlewares/authorize';

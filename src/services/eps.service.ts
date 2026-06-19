@@ -40,8 +40,6 @@ async function fetchEpsToken(): Promise<string> {
   const url = `${base}/v1/Auth/GetToken`;
   const hash = epsHmac(config.EPS_USERNAME!, config.EPS_HASH_KEY!);
 
-  console.log(`[EPS] GetToken → ${url} (user=${config.EPS_USERNAME})`);
-
   let res: Response;
   try {
     res = await fetch(url, {
@@ -50,7 +48,8 @@ async function fetchEpsToken(): Promise<string> {
       body: JSON.stringify({ userName: config.EPS_USERNAME, password: config.EPS_PASSWORD }),
     });
   } catch (netErr) {
-    console.error(`[EPS] GetToken network error (url=${url}):`, netErr instanceof Error ? netErr.message : netErr);
+    const msg = netErr instanceof Error ? netErr.message : String(netErr);
+    if (process.env.NODE_ENV !== 'production') console.error(`[EPS] GetToken network error: ${msg}`);
     throw new Error(`EPS GetToken: no response from ${url}`);
   }
 
@@ -58,17 +57,18 @@ async function fetchEpsToken(): Promise<string> {
   try { body = await res.json() as Record<string, unknown>; } catch { /* non-JSON body */ }
 
   if (!res.ok) {
-    console.error(`[EPS] GetToken HTTP ${res.status} (url=${url}):`, body);
-    throw new Error(`EPS GetToken failed: HTTP ${res.status} — ${body.errorMessage ?? body.ErrorMessage ?? JSON.stringify(body)}`);
+    const errMsg = typeof body.errorMessage === 'string' ? body.errorMessage
+      : typeof body.ErrorMessage === 'string' ? body.ErrorMessage
+      : `HTTP ${res.status}`;
+    if (process.env.NODE_ENV !== 'production') console.error(`[EPS] GetToken failed: ${errMsg}`);
+    throw new Error(`EPS GetToken failed: ${errMsg}`);
   }
 
   if (body.errorMessage || body.errorCode) {
-    console.error(`[EPS] GetToken API error:`, { code: body.errorCode, message: body.errorMessage });
-    throw new Error(`EPS authentication failed: ${body.errorMessage}`);
+    throw new Error(`EPS authentication failed: ${body.errorMessage ?? body.errorCode}`);
   }
 
   if (typeof body.token !== 'string') {
-    console.error(`[EPS] GetToken unexpected response (missing token):`, body);
     throw new Error('EPS GetToken: no token in response');
   }
 
@@ -76,7 +76,6 @@ async function fetchEpsToken(): Promise<string> {
   _tokenExpiry = body.expireDate
     ? new Date(body.expireDate as string)
     : new Date(Date.now() + 20 * 60 * 1000);
-  console.log(`[EPS] Token acquired, expires=${_tokenExpiry.toISOString()}`);
   return _cachedToken;
 }
 
@@ -100,8 +99,6 @@ async function callEpsInitialize(
   const token = await fetchEpsToken();
   const hash = epsHmac(merchantTxnId, config.EPS_HASH_KEY!);
 
-  console.log(`[EPS] InitializeEPS → ${url} | merchantTxnId=${merchantTxnId}`);
-
   let res: Response;
   try {
     res = await fetch(url, {
@@ -114,7 +111,8 @@ async function callEpsInitialize(
       body: JSON.stringify(requestBody),
     });
   } catch (netErr) {
-    console.error(`[EPS] InitializeEPS network error (url=${url}):`, netErr instanceof Error ? netErr.message : netErr);
+    const msg = netErr instanceof Error ? netErr.message : String(netErr);
+    if (process.env.NODE_ENV !== 'production') console.error(`[EPS] InitializeEPS network error: ${msg}`);
     throw new Error(`EPS InitializeEPS: no response from ${url}`);
   }
 
@@ -122,20 +120,20 @@ async function callEpsInitialize(
   try { body = await res.json() as Record<string, unknown>; } catch { /* non-JSON body */ }
 
   if (!res.ok) {
-    console.error(`[EPS] InitializeEPS HTTP ${res.status} (url=${url}):`, body);
-    throw new Error(`EPS InitializeEPS failed: HTTP ${res.status} — ${body.ErrorMessage ?? body.errorMessage ?? JSON.stringify(body)}`);
+    const errMsg = typeof body.ErrorMessage === 'string' ? body.ErrorMessage
+      : typeof body.errorMessage === 'string' ? body.errorMessage
+      : `HTTP ${res.status}`;
+    if (process.env.NODE_ENV !== 'production') console.error(`[EPS] InitializeEPS failed: ${errMsg}`);
+    throw new Error(`EPS InitializeEPS failed: ${errMsg}`);
   }
 
   if (body.ErrorMessage || body.ErrorCode) {
-    console.error(`[EPS] InitializeEPS API error:`, { code: body.ErrorCode, message: body.ErrorMessage });
     throw new Error(`EPS initialization failed: ${body.ErrorMessage}`);
   }
 
   if (!body.RedirectURL || !body.TransactionId) {
-    console.error(`[EPS] InitializeEPS missing required fields in response:`, body);
-    throw new Error(
-      `EPS InitializeEPS: missing ${!body.RedirectURL ? 'RedirectURL' : 'TransactionId'} in response`,
-    );
+    const missing = [!body.RedirectURL ? 'RedirectURL' : '', !body.TransactionId ? 'TransactionId' : ''].filter(Boolean).join(', ');
+    throw new Error(`EPS InitializeEPS: missing ${missing} in response`);
   }
 
   return body as EpsInitializeResponse;

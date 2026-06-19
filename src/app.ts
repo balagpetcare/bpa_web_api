@@ -58,7 +58,7 @@ import { donationsPublicRouter, donationsAdminRouter } from './modules/donations
 import meRouter from './modules/me/me.router';
 import emailLayoutsRouter from './modules/emails/email-layouts.router';
 import mailRouter from './modules/mail/mail-account.router';
-import contactInquiryRouter from './modules/contact-inquiry/contact-inquiry.router';
+import { contactInquiryPublicRouter, contactInquiryAdminRouter } from './modules/contact-inquiry/contact-inquiry.router';
 import {
   getMembershipStatusHandler,
   downloadReceiptPdfHandler,
@@ -130,6 +130,9 @@ app.use(`${v1}/admin/committee`, committeeRouter);
 app.use(`${v1}/admin/media`, mediaRouter);
 app.use(`${v1}/admin/seo`, seoRouter);
 app.use(`${v1}/admin/analytics`, analyticsRouter);
+// ⚠️ DEPRECATED — Legacy contact form. Replaced by contact-inquiry module
+// at /api/v1/public/contact-inquiries and /api/v1/admin/contact-inquiries.
+// Kept for backward compatibility. Will be removed in a future release.
 app.use(`${v1}/contacts`, contactsRouter);
 app.use(`${v1}/volunteers`, volunteersRouter);
 app.use(`${v1}/membership`, membershipRouter);
@@ -216,7 +219,8 @@ app.use(`${v1}/public/donations`, donationsPublicRouter);
 app.use(`${v1}/admin/donations`, donationsAdminRouter);
 
 // ─── Contact Inquiry System ──────────────────────────────────────
-app.use(`${v1}/admin/contact-inquiries`, contactInquiryRouter);
+app.use(`${v1}/public/contact-inquiries`, contactInquiryPublicRouter);
+app.use(`${v1}/admin/contact-inquiries`, contactInquiryAdminRouter);
 
 // ─── Authenticated User (me) ────────────────────────────────────
 app.use(`${v1}/me`, meRouter);

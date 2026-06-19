@@ -4,6 +4,8 @@ import { authenticateOptional } from '../../middlewares/authenticateOptional';
 import { authenticate } from '../../middlewares/authenticate';
 import { requireRole } from '../../middlewares/authorize';
 import { isValidUuid } from '../../utils/uuid';
+import { validate } from '../../middlewares/validate';
+import { initiateDonationSchema } from './donations.validation';
 
 const publicRouter = Router();
 const adminRouter = Router();
@@ -15,7 +17,7 @@ publicRouter.get('/page-data', ctrl.getDonationPageDataHandler);
 publicRouter.get('/purposes', ctrl.getActivePurposesHandler);
 publicRouter.get('/campaigns', ctrl.getActiveCampaignsHandler);
 publicRouter.get('/campaigns/:slug', ctrl.getCampaignDetailHandler);
-publicRouter.post('/initiate', authenticateOptional, ctrl.initializeDonationHandler);
+publicRouter.post('/initiate', authenticateOptional, validate(initiateDonationSchema), ctrl.initializeDonationHandler);
 publicRouter.get('/status/:referenceNo', ctrl.getDonationStatusHandler);
 publicRouter.get('/receipt/:referenceNo', ctrl.getDonationReceiptHandler);
 publicRouter.get('/receipt/:referenceNo/pdf', ctrl.getDonationReceiptPdfHandler);
