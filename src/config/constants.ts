@@ -57,6 +57,9 @@ export const RESOURCES = {
   COMMUNITY_MEMBERSHIP_UPGRADES: 'community_membership_upgrades',
   COMMUNITY_MEMBERSHIP_DOCUMENTS: 'community_membership_documents',
   COMMUNITY_MEMBERSHIP_DASHBOARD: 'community_membership_dashboard',
+  // Contact Inquiry System
+  CONTACT_INQUIRIES: 'contact_inquiries',
+  CONTACT_INQUIRY_CONFIG: 'contact_inquiry_config',
 } as const;
 
 export const ACTIONS = {

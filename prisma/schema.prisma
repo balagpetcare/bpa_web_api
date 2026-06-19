@@ -64,6 +64,27 @@ enum ContactStatus {
   replied
 }
 
+enum InquiryPriority {
+  normal
+  high
+  urgent
+
+  @@map("inquiry_priority")
+}
+
+enum InquiryStatus {
+  new
+  read
+  pending
+  in_progress
+  waiting_response
+  resolved
+  closed
+  spam
+
+  @@map("inquiry_status")
+}
+
 enum SmsStatus {
   queued
   sending
@@ -307,6 +328,11 @@ model User {
   homepageUpdates        Homepage[]              @relation("HomepageUpdatedBy")
   censusSubmissions      PetCensusSubmission[]
   donations              Donation[]
+  mailNotes              MailInternalNote[]
+  assignedInquiries      ContactInquiry[]        @relation("InquiryAssignee")
+  inquiryReplies         ContactReply[]          @relation("InquiryReplySender")
+  inquiryForwards        ContactForward[]        @relation("InquiryForwarder")
+  inquiryNotes           ContactInternalNote[]   @relation("InquiryNoteAuthor")
 
   @@map("users")
 }
@@ -658,6 +684,179 @@ model ContactSubmission {
   repliedBy User? @relation("RepliedBy", fields: [repliedById], references: [id])
 
   @@map("contact_submissions")
+}
+
+// ─── Contact Inquiry System ──────────────────────────────────────
+
+model ContactType {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String   @unique @db.VarChar(60)
+  labelEn     String   @map("label_en") @db.VarChar(120)
+  labelBn     String?  @map("label_bn") @db.VarChar(120)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  inquiries ContactInquiry[]
+
+  @@map("contact_types")
+}
+
+model InquiryCategory {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String   @unique @db.VarChar(60)
+  labelEn     String   @map("label_en") @db.VarChar(120)
+  labelBn     String?  @map("label_bn") @db.VarChar(120)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  inquiries ContactInquiry[]
+
+  @@map("inquiry_categories")
+}
+
+model ContactDepartment {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug         String   @unique @db.VarChar(60)
+  nameEn       String   @map("name_en") @db.VarChar(120)
+  nameBn       String?  @map("name_bn") @db.VarChar(120)
+  description  String?  @db.Text
+  contactEmail String?  @map("contact_email") @db.VarChar(255)
+  isActive     Boolean  @default(true) @map("is_active")
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  inquiries     ContactInquiry[]
+  priorityRules ContactPriorityRule[]
+
+  @@map("contact_departments")
+}
+
+model ContactPriorityRule {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contactTypeSlug String?         @map("contact_type_slug") @db.VarChar(60)
+  categorySlug    String?         @map("category_slug") @db.VarChar(60)
+  priority        InquiryPriority
+  departmentId    String?         @map("department_id") @db.Uuid
+  isActive        Boolean         @default(true) @map("is_active")
+  sortOrder       Int             @default(0) @map("sort_order")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  department ContactDepartment? @relation(fields: [departmentId], references: [id])
+
+  @@map("contact_priority_rules")
+}
+
+model ContactInquiry {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketNumber String @unique @map("ticket_number") @db.VarChar(30)
+
+  contactTypeId String? @map("contact_type_id") @db.Uuid
+  categoryId    String? @map("category_id") @db.Uuid
+
+  name             String  @db.VarChar(120)
+  email            String  @db.VarChar(255)
+  phone            String? @db.VarChar(30)
+  whatsapp         String? @db.VarChar(30)
+  country          String? @db.VarChar(100)
+  city             String? @db.VarChar(100)
+  organizationName String? @map("organization_name") @db.VarChar(255)
+  designation      String? @db.VarChar(120)
+  website          String? @db.VarChar(500)
+
+  subject       String  @db.VarChar(500)
+  message       String  @db.Text
+  attachmentUrl String? @map("attachment_url") @db.Text
+
+  priority     InquiryPriority @default(normal)
+  status       InquiryStatus   @default(new)
+  departmentId String?         @map("department_id") @db.Uuid
+  assignedToId String?         @map("assigned_to_id") @db.Uuid
+
+  consentGiven Boolean @default(false) @map("consent_given")
+
+  ipAddress String? @map("ip_address") @db.VarChar(50)
+  userAgent String? @map("user_agent") @db.Text
+  source    String? @default("web") @db.VarChar(100)
+
+  readAt     DateTime? @map("read_at") @db.Timestamptz
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz
+  closedAt   DateTime? @map("closed_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  contactType ContactType?       @relation(fields: [contactTypeId], references: [id])
+  category    InquiryCategory?   @relation(fields: [categoryId], references: [id])
+  department  ContactDepartment? @relation(fields: [departmentId], references: [id])
+  assignedTo  User?              @relation("InquiryAssignee", fields: [assignedToId], references: [id])
+
+  replies       ContactReply[]
+  forwards      ContactForward[]
+  internalNotes ContactInternalNote[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([email])
+  @@index([createdAt])
+  @@map("contact_inquiries")
+}
+
+model ContactReply {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inquiryId     String   @map("inquiry_id") @db.Uuid
+  mailAccountId String?  @map("mail_account_id") @db.Uuid
+  toAddresses   String[] @map("to_addresses")
+  ccAddresses   String[] @map("cc_addresses")
+  subject       String   @db.VarChar(500)
+  bodyHtml      String   @db.Text
+  plainText     String?  @map("plain_text") @db.Text
+  sentById      String   @map("sent_by_id") @db.Uuid
+  sentAt        DateTime @default(now()) @map("sent_at") @db.Timestamptz
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  inquiry ContactInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  sentBy  User           @relation("InquiryReplySender", fields: [sentById], references: [id])
+
+  @@map("contact_replies")
+}
+
+model ContactForward {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inquiryId     String   @map("inquiry_id") @db.Uuid
+  toAddresses   String[] @map("to_addresses")
+  ccAddresses   String[] @map("cc_addresses")
+  subject       String   @db.VarChar(500)
+  bodyHtml      String   @db.Text
+  note          String?  @db.Text
+  forwardedById String   @map("forwarded_by_id") @db.Uuid
+  forwardedAt   DateTime @default(now()) @map("forwarded_at") @db.Timestamptz
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  inquiry     ContactInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  forwardedBy User           @relation("InquiryForwarder", fields: [forwardedById], references: [id])
+
+  @@map("contact_forwards")
+}
+
+model ContactInternalNote {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inquiryId   String   @map("inquiry_id") @db.Uuid
+  note        String   @db.Text
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  inquiry   ContactInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  createdBy User           @relation("InquiryNoteAuthor", fields: [createdById], references: [id])
+
+  @@map("contact_internal_notes")
 }
 
 // ─── Media ──────────────────────────────────────────────────────
@@ -2620,3 +2819,179 @@ model DonationPageSetting {
 
   @@map("donation_page_settings")
 }
+
+model EmailLayoutSetting {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String   @db.VarChar(255)
+  isDefault            Boolean  @default(false) @map("is_default")
+  status               String   @default("active") @db.VarChar(20) // active/inactive
+  locale               String   @default("en") @db.VarChar(10) // en/bn
+  headerLogoUrl        String?  @map("header_logo_url") @db.Text
+  headerTitle          String   @map("header_title") @db.VarChar(255)
+  headerSubtitle       String?  @map("header_subtitle") @db.VarChar(255)
+  headerBackgroundColor String   @default("#1a2540") @map("header_background_color") @db.VarChar(20)
+  headerTextColor      String   @default("#ffffff") @map("header_text_color") @db.VarChar(20)
+  footerLogoUrl        String?  @map("footer_logo_url") @db.Text
+  footerText           String?  @map("footer_text") @db.Text
+  footerSupportEmail   String?  @map("footer_support_email") @db.VarChar(255)
+  footerPhonePrimary   String?  @map("footer_phone_primary") @db.VarChar(50)
+  footerPhoneSecondary String?  @map("footer_phone_secondary") @db.VarChar(50)
+  footerWebsiteUrl     String?  @map("footer_website_url") @db.Text
+  footerAddress        String?  @map("footer_address") @db.Text
+  footerBackgroundColor String   @default("#1a2540") @map("footer_background_color") @db.VarChar(20)
+  footerTextColor      String   @default("#aabbcc") @map("footer_text_color") @db.VarChar(20)
+  buttonPrimaryColor   String   @default("#1a6b3c") @map("button_primary_color") @db.VarChar(20)
+  buttonTextColor      String   @default("#ffffff") @map("button_text_color") @db.VarChar(20)
+  legalNote            String?  @map("legal_note") @db.Text
+  customHeaderHtml     String?  @map("custom_header_html") @db.Text
+  customFooterHtml     String?  @map("custom_footer_html") @db.Text
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("email_layout_settings")
+}
+
+model MailAccount {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  displayName          String   @map("display_name") @db.VarChar(255)
+  emailAddress         String   @unique @map("email_address") @db.VarChar(255)
+  smtpHost             String?  @map("smtp_host") @db.VarChar(255)
+  smtpPort             Int?     @map("smtp_port")
+  smtpSecure           Boolean? @map("smtp_secure")
+  imapHost             String?  @map("imap_host") @db.VarChar(255)
+  imapPort             Int?     @map("imap_port")
+  imapSecure           Boolean? @map("imap_secure")
+  username             String   @db.VarChar(255)
+  encryptedPassword    String?  @map("encrypted_password") @db.Text
+  fromName             String   @map("from_name") @db.VarChar(255)
+  status               String   @default("active") @db.VarChar(20) // active/inactive
+  isDefault            Boolean  @default(false) @map("is_default")
+  sortOrder            Int      @default(0) @map("sort_order")
+
+  smtpLastStatus       String?  @map("smtp_last_status") @db.VarChar(50)
+  smtpLastCheckedAt    DateTime? @map("smtp_last_checked_at") @db.Timestamptz
+  imapLastStatus       String?  @map("imap_last_status") @db.VarChar(50)
+  imapLastCheckedAt    DateTime? @map("imap_last_checked_at") @db.Timestamptz
+  lastSyncAt           DateTime? @map("last_sync_at") @db.Timestamptz
+  lastSyncUid          Int?     @map("last_sync_uid")
+  deletedAt            DateTime? @map("deleted_at") @db.Timestamptz
+
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  messages             MailMessage[]
+  syncLogs             MailSyncLog[]
+
+  @@map("mail_accounts")
+}
+
+model MailThread {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subject              String   @db.Text
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  messages             MailMessage[]
+  internalNotes        MailInternalNote[]
+
+  @@map("mail_threads")
+}
+
+model MailMessage {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mailboxId            String   @map("mailbox_id") @db.Uuid
+  threadId             String   @map("thread_id") @db.Uuid
+  messageId            String   @map("message_id") @db.VarChar(255) // unique per mailbox or global message-id
+  uid                  Int?     @map("uid") // IMAP message unique identifier for incremental sync
+  inReplyTo            String?  @map("in_reply_to") @db.Text
+  references           String?  @map("references") @db.Text
+  subject              String   @db.Text
+  bodyHtml             String   @map("body_html") @db.Text
+  bodyText             String?  @map("body_text") @db.Text
+  fromAddress          String   @map("from_address") @db.VarChar(255)
+  fromName             String?  @map("from_name") @db.VarChar(255)
+  date                 DateTime @db.Timestamptz
+  isRead               Boolean  @default(false) @map("is_read")
+  isSent               Boolean  @default(false) @map("is_sent")
+  status               String   @default("received") @db.VarChar(20) // received/sent_success/sent_failed/draft
+  errorMessage         String?  @map("error_message") @db.Text
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  mailbox              MailAccount @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  thread               MailThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  recipients           MailRecipient[]
+  attachments          MailAttachment[]
+  internalNotes        MailInternalNote[]
+
+  @@unique([mailboxId, messageId])
+  @@index([mailboxId])
+  @@index([threadId])
+  @@index([date])
+  @@map("mail_messages")
+}
+
+model MailRecipient {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId            String   @map("message_id") @db.Uuid
+  emailAddress         String   @map("email_address") @db.VarChar(255)
+  name                 String?  @db.VarChar(255)
+  type                 String   @db.VarChar(10) // to/cc/bcc
+
+  message              MailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([emailAddress])
+  @@map("mail_recipients")
+}
+
+model MailAttachment {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId            String   @map("message_id") @db.Uuid
+  filename             String   @db.VarChar(255)
+  contentType          String   @map("content_type") @db.VarChar(100)
+  size                 Int
+  storagePath          String   @map("storage_path") @db.Text
+  url                  String   @db.Text
+  cid                  String?  @db.VarChar(100)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  message              MailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("mail_attachments")
+}
+
+model MailSyncLog {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mailboxId            String   @map("mailbox_id") @db.Uuid
+  status               String   @db.VarChar(20) // success/failed
+  errorMessage         String?  @map("error_message") @db.Text
+  emailsSynced         Int      @default(0) @map("emails_synced")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  mailbox              MailAccount @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@map("mail_sync_logs")
+}
+
+model MailInternalNote {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  threadId             String   @map("thread_id") @db.Uuid
+  messageId            String?  @map("message_id") @db.Uuid
+  note                 String   @db.Text
+  createdById          String   @map("created_by_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  thread               MailThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  message              MailMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  createdBy            User        @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@index([messageId])
+  @@index([createdById])
+  @@map("mail_internal_notes")
+}
+
+

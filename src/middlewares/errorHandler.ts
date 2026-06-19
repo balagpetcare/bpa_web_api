@@ -23,15 +23,18 @@ export function errorHandler(
   }
 
   if (err instanceof ZodError) {
+    const formattedErrors = err.errors.map((e) => ({
+      path: e.path.join('.'),
+      message: e.message,
+    }));
     res.status(HTTP_STATUS.BAD_REQUEST).json({
       success: false,
+      message: 'Validation failed',
+      errors: formattedErrors,
       error: {
         code: ERROR_CODES.VALIDATION_ERROR,
         message: 'Validation failed',
-        details: err.errors.map((e) => ({
-          path: e.path.join('.'),
-          message: e.message,
-        })),
+        details: formattedErrors,
       },
     });
     return;

@@ -950,12 +950,199 @@ async function main(): Promise<void> {
   });
 
   console.log('Site settings seeded.');
+
+  console.log('Seeding default email layouts...');
+  const defaultLayoutEn = {
+    name: 'Default BPA Email Layout (English)',
+    locale: 'en',
+    status: 'active',
+    isDefault: true,
+    headerTitle: 'Bangladesh Pet Association',
+    headerSubtitle: 'A national platform for responsible pet care',
+    headerBackgroundColor: '#1a2540',
+    headerTextColor: '#ffffff',
+    footerSupportEmail: 'vaccination2026@bangladeshpetassociation.com',
+    footerPhonePrimary: '01575-008300',
+    footerPhoneSecondary: '01701-022274',
+    footerWebsiteUrl: 'https://bangladeshpetassociation.com',
+    footerText: 'Bangladesh Pet Association',
+    footerAddress: 'Dhaka, Bangladesh',
+    footerBackgroundColor: '#1a2540',
+    footerTextColor: '#aabbcc',
+    buttonPrimaryColor: '#1a6b3c',
+    buttonTextColor: '#ffffff',
+    legalNote: 'You are receiving this email because you interacted with Bangladesh Pet Association services.',
+  };
+
+  const defaultLayoutBn = {
+    name: 'Default BPA Email Layout (Bengali)',
+    locale: 'bn',
+    status: 'active',
+    isDefault: true,
+    headerTitle: 'বাংলাদেশ পেট অ্যাসোসিয়েশন',
+    headerSubtitle: 'দায়িত্বশীল পোষা প্রাণী সেবার জাতীয় প্ল্যাটফর্ম',
+    headerBackgroundColor: '#1a2540',
+    headerTextColor: '#ffffff',
+    footerSupportEmail: 'vaccination2026@bangladeshpetassociation.com',
+    footerPhonePrimary: '01575-008300',
+    footerPhoneSecondary: '01701-022274',
+    footerWebsiteUrl: 'https://bangladeshpetassociation.com',
+    footerText: 'বাংলাদেশ পেট অ্যাসোসিয়েশন',
+    footerAddress: 'ঢাকা, বাংলাদেশ',
+    footerBackgroundColor: '#1a2540',
+    footerTextColor: '#aabbcc',
+    buttonPrimaryColor: '#1a6b3c',
+    buttonTextColor: '#ffffff',
+    legalNote: 'বাংলাদেশ পেট অ্যাসোসিয়েশন-এর পরিষেবায় অংশ নেওয়ার জন্য আপনি এই ইমেলটি পেয়েছেন।',
+  };
+
+  const existingEn = await prisma.emailLayoutSetting.findFirst({
+    where: { locale: 'en', name: defaultLayoutEn.name },
+  });
+  if (!existingEn) {
+    await prisma.emailLayoutSetting.create({ data: defaultLayoutEn });
+  }
+
+  const existingBn = await prisma.emailLayoutSetting.findFirst({
+    where: { locale: 'bn', name: defaultLayoutBn.name },
+  });
+  if (!existingBn) {
+    await prisma.emailLayoutSetting.create({ data: defaultLayoutBn });
+  }
+  console.log('Email layouts seeded.');
+
+  console.log('Seeding default mail accounts...');
+  const defaultAccounts = [
+    {
+      displayName: 'BPA Info',
+      emailAddress: 'info@bangladeshpetassociation.com',
+      smtpHost: null,
+      smtpPort: null,
+      smtpSecure: null,
+      imapHost: null,
+      imapPort: null,
+      imapSecure: null,
+      username: 'info@bangladeshpetassociation.com',
+      encryptedPassword: null,
+      fromName: 'BPA Info',
+      status: 'inactive',
+      isDefault: false,
+    },
+    {
+      displayName: 'BPA Admin',
+      emailAddress: 'admin@bangladeshpetassociation.com',
+      smtpHost: null,
+      smtpPort: null,
+      smtpSecure: null,
+      imapHost: null,
+      imapPort: null,
+      imapSecure: null,
+      username: 'admin@bangladeshpetassociation.com',
+      encryptedPassword: null,
+      fromName: 'BPA Admin',
+      status: 'inactive',
+      isDefault: false,
+    },
+    {
+      displayName: 'BPA Support',
+      emailAddress: 'support@bangladeshpetassociation.com',
+      smtpHost: null,
+      smtpPort: null,
+      smtpSecure: null,
+      imapHost: null,
+      imapPort: null,
+      imapSecure: null,
+      username: 'support@bangladeshpetassociation.com',
+      encryptedPassword: null,
+      fromName: 'BPA Support',
+      status: 'inactive',
+      isDefault: false,
+    },
+    {
+      displayName: 'BPA Accounts',
+      emailAddress: 'accounts@bangladeshpetassociation.com',
+      smtpHost: null,
+      smtpPort: null,
+      smtpSecure: null,
+      imapHost: null,
+      imapPort: null,
+      imapSecure: null,
+      username: 'accounts@bangladeshpetassociation.com',
+      encryptedPassword: null,
+      fromName: 'BPA Accounts',
+      status: 'inactive',
+      isDefault: false,
+    },
+    {
+      displayName: 'BPA Media',
+      emailAddress: 'media@bangladeshpetassociation.com',
+      smtpHost: null,
+      smtpPort: null,
+      smtpSecure: null,
+      imapHost: null,
+      imapPort: null,
+      imapSecure: null,
+      username: 'media@bangladeshpetassociation.com',
+      encryptedPassword: null,
+      fromName: 'BPA Media',
+      status: 'inactive',
+      isDefault: false,
+    },
+    {
+      displayName: 'BPA Vaccination 2026',
+      emailAddress: 'vaccination2026@bangladeshpetassociation.com',
+      smtpHost: null,
+      smtpPort: null,
+      smtpSecure: null,
+      imapHost: null,
+      imapPort: null,
+      imapSecure: null,
+      username: 'vaccination2026@bangladeshpetassociation.com',
+      encryptedPassword: null,
+      fromName: 'BPA Vaccination 2026',
+      status: 'inactive',
+      isDefault: false,
+    },
+  ];
+
+  for (const acc of defaultAccounts) {
+    await prisma.mailAccount.upsert({
+      where: { emailAddress: acc.emailAddress },
+      update: {
+        displayName: acc.displayName,
+        smtpHost: acc.smtpHost,
+        smtpPort: acc.smtpPort,
+        smtpSecure: acc.smtpSecure,
+        imapHost: acc.imapHost,
+        imapPort: acc.imapPort,
+        imapSecure: acc.imapSecure,
+        username: acc.username,
+        fromName: acc.fromName,
+        status: acc.status,
+        isDefault: acc.isDefault,
+      },
+      create: acc,
+    });
+  }
+  console.log('Mail accounts seeded inactive; update passwords from Admin Panel.');
   console.log('─────────────────────────────────────────────');
   console.log('All seed sections complete.');
   console.log(`Diagnostic services: ${diagnosticServices.length}`);
   console.log(`Care partner benefits: ${carePartnerBenefits.length}`);
   console.log(`Social impact programs: ${socialImpactPrograms.length}`);
   console.log(`Roadmap items: ${roadmapItems.length}`);
+}
+
+import crypto from 'crypto';
+function encryptPasswordSeed(password: string): string {
+  const ALGORITHM = 'aes-256-cbc';
+  const SECRET = process.env.MAIL_CREDENTIAL_SECRET || 'bpa_mail_secret_key_32_bytes_long_!!!';
+  const hashKey = crypto.createHash('sha256').update(SECRET).digest();
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(ALGORITHM, hashKey, iv);
+  let encrypted = cipher.update(password, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return `${iv.toString('hex')}:${encrypted}`;
 }
 
 main()

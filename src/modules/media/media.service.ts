@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { prisma } from '../../database/prisma';
 import { AppError } from '../../utils/AppError';
 import { buildPaginationMeta, parsePaginationQuery } from '../../utils/response';
 import { AuditContext, auditCreate, auditUpdate, auditDelete } from '../../utils/audit';
@@ -63,6 +64,13 @@ export async function cropMedia(
   };
 
   if (uploadedById) {
+    const userExists = await prisma.user.findUnique({
+      where: { id: uploadedById },
+      select: { id: true },
+    });
+    if (!userExists) {
+      throw AppError.unauthorized('Authenticated user not found in the database');
+    }
     data.uploadedBy = { connect: { id: uploadedById } };
   }
 
@@ -105,6 +113,13 @@ export async function uploadFile(
   };
 
   if (uploadedById) {
+    const userExists = await prisma.user.findUnique({
+      where: { id: uploadedById },
+      select: { id: true },
+    });
+    if (!userExists) {
+      throw AppError.unauthorized('Authenticated user not found in the database');
+    }
     data.uploadedBy = { connect: { id: uploadedById } };
   }
 

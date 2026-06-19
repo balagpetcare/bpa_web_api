@@ -1,0 +1,31 @@
+-- CreateTable
+CREATE TABLE "email_layout_settings" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "name" VARCHAR(255) NOT NULL,
+    "is_default" BOOLEAN NOT NULL DEFAULT false,
+    "status" VARCHAR(20) NOT NULL DEFAULT 'active',
+    "locale" VARCHAR(10) NOT NULL DEFAULT 'en',
+    "header_logo_url" TEXT,
+    "header_title" VARCHAR(255) NOT NULL,
+    "header_subtitle" VARCHAR(255),
+    "header_background_color" VARCHAR(20) NOT NULL DEFAULT '#1a2540',
+    "header_text_color" VARCHAR(20) NOT NULL DEFAULT '#ffffff',
+    "footer_logo_url" TEXT,
+    "footer_text" TEXT,
+    "footer_support_email" VARCHAR(255),
+    "footer_phone_primary" VARCHAR(50),
+    "footer_phone_secondary" VARCHAR(50),
+    "footer_website_url" TEXT,
+    "footer_address" TEXT,
+    "footer_background_color" VARCHAR(20) NOT NULL DEFAULT '#1a2540',
+    "footer_text_color" VARCHAR(20) NOT NULL DEFAULT '#aabbcc',
+    "button_primary_color" VARCHAR(20) NOT NULL DEFAULT '#1a6b3c',
+    "button_text_color" VARCHAR(20) NOT NULL DEFAULT '#ffffff',
+    "legal_note" TEXT,
+    "custom_header_html" TEXT,
+    "custom_footer_html" TEXT,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "email_layout_settings_pkey" PRIMARY KEY ("id")
+);

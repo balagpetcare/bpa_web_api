@@ -199,9 +199,14 @@ export async function sendVerificationEmail(user: { id: string; email: string | 
   
   if (config.NODE_ENV === 'production' || config.EMAIL_HOST) {
     await emailService.sendEmail({
-      to: user.email,
-      subject: 'Verify your email address - Bangladesh Pet Association',
-      html: `<p>Please click <a href="${verifyLink}">here</a> to verify your email address. This link expires in 24 hours.</p>`,
+      to: user.email!,
+      template: 'GENERAL_NOTIFICATION',
+      data: {
+        title: 'Verify your email address',
+        message: 'Thank you for signing up with Bangladesh Pet Association. Please click the button below to verify your email address. This link expires in 24 hours.',
+        actionText: 'Verify Email',
+        actionUrl: verifyLink,
+      },
     });
   } else {
     console.log(`[DEV] Verification link for ${user.email}: ${verifyLink}`);

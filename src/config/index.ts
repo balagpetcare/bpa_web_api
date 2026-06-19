@@ -145,6 +145,16 @@ const envSchema = z.object({
 
   OTP_EXPIRY_MINUTES: z.coerce.number().default(5),
   OTP_MAX_ATTEMPTS: z.coerce.number().default(5),
+  MAIL_CREDENTIAL_SECRET: z.string().optional(),
+  DEFAULT_SMTP_HOST: z.string().default('d552.dimedns.com'),
+  DEFAULT_SMTP_PORT: z.coerce.number().default(465),
+  DEFAULT_SMTP_SECURE: z.preprocess((val) => val === 'true' || val === true || val === '1', z.boolean()).default(true),
+  DEFAULT_IMAP_HOST: z.string().default('d552.dimedns.com'),
+  DEFAULT_IMAP_PORT: z.coerce.number().default(993),
+  DEFAULT_IMAP_SECURE: z.preprocess((val) => val === 'true' || val === true || val === '1', z.boolean()).default(true),
+  MAIL_SYNC_ENABLED: z.preprocess((val) => val === 'true' || val === true || val === '1', z.boolean()).default(true),
+  MAIL_SYNC_INTERVAL_MINUTES: z.coerce.number().default(5),
+  MAIL_ATTACHMENT_MAX_MB: z.coerce.number().default(15),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -179,4 +189,22 @@ const AUTH_JWT_SECRET_DEFAULT = 'local_dev_secret_min_32_chars_change_in_product
 if (config.NODE_ENV === 'production' && config.AUTH_JWT_SECRET === AUTH_JWT_SECRET_DEFAULT) {
   console.error('[SECURITY] AUTH_JWT_SECRET is using the insecure default value. Set AUTH_JWT_SECRET in environment before deploying to production!');
   process.exit(1);
+}
+
+// ─── MAIL_CREDENTIAL_SECRET validation ───────────────────────────
+const mailSecret = config.MAIL_CREDENTIAL_SECRET;
+if (!mailSecret) {
+  if (config.NODE_ENV === 'production') {
+    console.error('[SECURITY ERROR] MAIL_CREDENTIAL_SECRET is missing. Set it with 32+ characters in environment before deploying to production!');
+    process.exit(1);
+  } else {
+    console.warn('[SECURITY WARNING] MAIL_CREDENTIAL_SECRET is missing in development. Email account password credentials encryption cannot be fully processed.');
+  }
+} else if (mailSecret.length < 32) {
+  if (config.NODE_ENV === 'production') {
+    console.error('[SECURITY ERROR] MAIL_CREDENTIAL_SECRET must be at least 32 characters long in production!');
+    process.exit(1);
+  } else {
+    console.warn('[SECURITY WARNING] MAIL_CREDENTIAL_SECRET should be at least 32 characters long for secure encryption.');
+  }
 }

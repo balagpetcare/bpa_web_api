@@ -4,6 +4,7 @@ import { config } from './config';
 import app from './app';
 import { prisma } from './database/prisma';
 import { startCampaignCleanupJob } from './jobs/campaign-cleanup.job';
+import { startMailSyncJob } from './jobs/mail-sync.job';
 import { checkStorageHealth } from './storage/storage.service';
 import { validateEPSStartup } from './services/eps.service';
 
@@ -25,6 +26,7 @@ async function bootstrap(): Promise<void> {
 
   validateEPSStartup();
   const cleanupTimer = startCampaignCleanupJob();
+  const syncTimer = startMailSyncJob();
 
   const server = app.listen(config.PORT, () => {
     console.log(`BPA API running on port ${config.PORT} [${config.NODE_ENV}]`);
@@ -36,6 +38,7 @@ async function bootstrap(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`\nReceived ${signal}. Shutting down gracefully...`);
     clearInterval(cleanupTimer);
+    clearInterval(syncTimer);
     server.close(async () => {
       await prisma.$disconnect();
       console.log('Database disconnected');

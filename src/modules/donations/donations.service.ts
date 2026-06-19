@@ -333,8 +333,8 @@ export async function settleDonationPayment(paymentId: string) {
   if (donation.donorEmail) {
     void sendEmail({
       to: donation.donorEmail,
-      subject: `Donation Receipt — ${donation.referenceNo} | Bangladesh Pet Association`,
-      html: buildDonationReceiptEmail({
+      template: 'DONATION_RECEIPT',
+      data: {
         donorName: donation.isAnonymous ? 'Valued Donor' : donation.donorName,
         referenceNo: donation.referenceNo,
         amount: amountFmt,
@@ -343,7 +343,7 @@ export async function settleDonationPayment(paymentId: string) {
         paidAt: donation.paidAt || donation.createdAt,
         gatewayTransactionId: donation.gatewayTransactionId,
         receiptUrl,
-      }),
+      },
     }).catch(console.error);
   }
 
@@ -363,70 +363,6 @@ export async function settleDonationPayment(paymentId: string) {
   }
 }
 
-function buildDonationReceiptEmail(p: {
-  donorName: string;
-  referenceNo: string;
-  amount: string;
-  campaignTitle?: string | null;
-  purposeTitle?: string | null;
-  paidAt: Date;
-  gatewayTransactionId?: string | null;
-  receiptUrl: string;
-}) {
-  const dateStr = p.paidAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const supportLine = `${BPA_SUPPORT_EMAIL} | ${BPA_SUPPORT_PHONE}`;
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr><td align="center" style="padding:32px 16px">
-<table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
-  <tr><td style="background:#1a2540;padding:28px 32px;text-align:center">
-    <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold">Bangladesh Pet Association</p>
-    <p style="margin:6px 0 0;color:#aabbcc;font-size:12px">Official Donation Receipt</p>
-  </td></tr>
-  <tr><td style="padding:32px">
-    <p style="margin:0 0 16px;font-size:15px;color:#333">Dear ${p.donorName},</p>
-    <p style="margin:0 0 24px;font-size:14px;color:#555;line-height:1.6">
-      Thank you for your generous donation to BPA. Your contribution directly supports animal welfare programs across Bangladesh.
-    </p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:24px">
-      <tr style="background:#f9fafb"><td colspan="2" style="padding:12px 16px;font-size:11px;font-weight:bold;color:#888;letter-spacing:0.05em">RECEIPT DETAILS</td></tr>
-      ${row('Reference No', `<span style="font-family:monospace;font-weight:bold;color:#1a2540">${p.referenceNo}</span>`)}
-      ${row('Date Paid', dateStr)}
-      ${row('Amount', `<span style="font-weight:bold;color:#1a6b3c;font-size:16px">${p.amount}</span>`)}
-      ${p.campaignTitle ? row('Campaign', p.campaignTitle) : ''}
-      ${p.purposeTitle ? row('Purpose', p.purposeTitle) : ''}
-      ${p.gatewayTransactionId ? row('Gateway Txn Ref', p.gatewayTransactionId) : ''}
-    </table>
-    <div style="text-align:center;margin-bottom:24px">
-      <a href="${p.receiptUrl}" style="display:inline-block;background:#1a6b3c;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 28px;border-radius:8px">
-        View &amp; Download Receipt
-      </a>
-    </div>
-    <p style="margin:0 0 8px;font-size:12px;color:#888;text-align:center">
-      ${RECEIPT_POLICY}
-    </p>
-  </td></tr>
-  <tr><td style="background:#1a2540;padding:20px 32px;text-align:center">
-    <p style="margin:0;color:#aabbcc;font-size:11px">Questions? Contact us at ${supportLine}</p>
-    <p style="margin:6px 0 0;color:#667799;font-size:10px">This is a system-generated email — please do not reply directly.</p>
-  </td></tr>
-</table>
-</td></tr>
-</table>
-</body>
-</html>`;
-}
-
-function row(label: string, value: string) {
-  return `<tr style="border-top:1px solid #e5e7eb">
-    <td style="padding:10px 16px;font-size:12px;color:#888;width:40%">${label}</td>
-    <td style="padding:10px 16px;font-size:13px;color:#333">${value}</td>
-  </tr>`;
-}
 
 export async function cancelDonationPayment(paymentId: string) {
   const donation = await repo.findDonationByPaymentId(paymentId);

@@ -56,6 +56,9 @@ import { siteSettingsAdminRouter, siteSettingsPublicRouter } from './modules/sit
 import { communityMembershipAdminRouter, communityMembershipPublicRouter } from './modules/community-membership/community-membership.router';
 import { donationsPublicRouter, donationsAdminRouter } from './modules/donations/donations.router';
 import meRouter from './modules/me/me.router';
+import emailLayoutsRouter from './modules/emails/email-layouts.router';
+import mailRouter from './modules/mail/mail-account.router';
+import contactInquiryRouter from './modules/contact-inquiry/contact-inquiry.router';
 import {
   getMembershipStatusHandler,
   downloadReceiptPdfHandler,
@@ -193,6 +196,8 @@ app.use(`${v1}/public/diagnostic-center-services`, diagnosticCenterServicesPubli
 // ─── Site Settings ──────────────────────────────────────────────
 app.use(`${v1}/public/site-settings`, siteSettingsPublicRouter);
 app.use(`${v1}/admin/site-settings`, siteSettingsAdminRouter);
+app.use(`${v1}/admin/email-layouts`, emailLayoutsRouter);
+app.use(`${v1}/admin/mail`, mailRouter);
 
 // ─── Community Care Membership Engine ──────────────────────────
 app.use(`${v1}/admin/community-membership`, communityMembershipAdminRouter);
@@ -209,6 +214,9 @@ app.get(`${v1}/public/memberships/:reference/welcome-pack.pdf`, publicReadLimite
 // ─── Donations ──────────────────────────────────────────────────
 app.use(`${v1}/public/donations`, donationsPublicRouter);
 app.use(`${v1}/admin/donations`, donationsAdminRouter);
+
+// ─── Contact Inquiry System ──────────────────────────────────────
+app.use(`${v1}/admin/contact-inquiries`, contactInquiryRouter);
 
 // ─── Authenticated User (me) ────────────────────────────────────
 app.use(`${v1}/me`, meRouter);
