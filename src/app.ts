@@ -73,7 +73,7 @@ import dashboardRouter from './modules/dashboard/dashboard.router';
 import { contentPublicRouter, contentAuthenticatedRouter, contentAdminRouter } from './modules/content/content.router';
 import publicAnalyticsRouter from './modules/analytics/analytics-public.router';
 import campaignFieldOpsRouter from './modules/campaign-field-ops/campaign-field-ops.router';
-import { myAssignedRouter } from './modules/campaign-staff-assignments/campaign-staff-assignments.router';
+import campaignStaffAssignmentsRouter, { myAssignedRouter } from './modules/campaign-staff-assignments/campaign-staff-assignments.router';
 import { adminRouter as campaignFaqsAdminRouter, publicRouter as campaignFaqsPublicRouter } from './modules/campaign-faqs/campaign-faqs.router';
 import { campaignParticipantsRouter } from './modules/campaign-participants/participants.router';
 
@@ -179,6 +179,9 @@ app.use(`${v1}/public/certificates/verify`, certificateVerifyPublicRouter);
 
 // ─── Campaign Field Operations (QR, Check-in, Vaccination, Certificates) ──
 app.use(`${v1}/admin/campaigns/:campaignId`, campaignFieldOpsRouter);
+
+// ─── Campaign Staff Assignments ────────────────────────────────
+app.use(`${v1}/admin/campaigns/:campaignId/staff-assignments`, campaignStaffAssignmentsRouter);
 
 // ─── Campaign FAQs ────────────────────────────────────────────
 app.use(`${v1}/admin/campaigns`, campaignFaqsAdminRouter);

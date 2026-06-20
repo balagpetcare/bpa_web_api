@@ -31,18 +31,31 @@ export async function listStaffAssignments(campaignId: string, query: ListStaffA
 
 export async function assignStaff(campaignId: string, dto: AssignStaffDto, actorId: string, ipAddress?: string) {
   const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
-  if (!campaign) throw AppError.notFound('Campaign not found');
+  if (!campaign) throw AppError.notFound('Campaign');
 
   const user = await prisma.user.findUnique({
     where: { id: dto.userId },
     select: { id: true, isActive: true, userRoles: { select: { role: { select: { name: true } } } } },
   });
-  if (!user) throw AppError.notFound('User not found');
+  if (!user) throw AppError.notFound('User');
   if (!user.isActive) throw AppError.badRequest('User is inactive and cannot be assigned');
 
   if (dto.sessionId) {
     const session = await prisma.campaignSession.findFirst({ where: { id: dto.sessionId, campaignId } });
-    if (!session) throw AppError.notFound('Session not found in this campaign');
+    if (!session) throw AppError.notFound('Session');
+  }
+
+  const duplicate = await prisma.campaignStaffAssignment.findFirst({
+    where: {
+      campaignId,
+      userId: dto.userId,
+      sessionId: dto.sessionId ?? null,
+      dutyRole: dto.dutyRole,
+      isActive: true,
+    },
+  });
+  if (duplicate) {
+    throw AppError.conflict('This staff member is already assigned to this campaign/session with the same duty role');
   }
 
   const assignment = await prisma.campaignStaffAssignment.create({
@@ -70,11 +83,11 @@ export async function assignStaff(campaignId: string, dto: AssignStaffDto, actor
 
 export async function updateStaffAssignment(campaignId: string, assignmentId: string, dto: UpdateStaffAssignmentDto, actorId: string, ipAddress?: string) {
   const existing = await prisma.campaignStaffAssignment.findUnique({ where: { id: assignmentId } });
-  if (!existing || existing.campaignId !== campaignId) throw AppError.notFound('Staff assignment not found in this campaign');
+  if (!existing || existing.campaignId !== campaignId) throw AppError.notFound('Staff assignment');
 
   if (dto.sessionId) {
     const session = await prisma.campaignSession.findFirst({ where: { id: dto.sessionId, campaignId } });
-    if (!session) throw AppError.notFound('Session not found in this campaign');
+    if (!session) throw AppError.notFound('Session');
   }
 
   const updated = await prisma.campaignStaffAssignment.update({
@@ -101,7 +114,7 @@ export async function updateStaffAssignment(campaignId: string, assignmentId: st
 
 export async function deactivateStaffAssignment(campaignId: string, assignmentId: string, actorId: string, ipAddress?: string) {
   const existing = await prisma.campaignStaffAssignment.findUnique({ where: { id: assignmentId } });
-  if (!existing || existing.campaignId !== campaignId) throw AppError.notFound('Staff assignment not found in this campaign');
+  if (!existing || existing.campaignId !== campaignId) throw AppError.notFound('Staff assignment');
 
   await prisma.campaignStaffAssignment.update({ where: { id: assignmentId }, data: { isActive: false } });
 
@@ -109,13 +122,11 @@ export async function deactivateStaffAssignment(campaignId: string, assignmentId
     { action: AuditAction.update, resource: 'campaign_staff_assignment', resourceId: assignmentId, newValues: { isActive: false } },
     { actorId, ipAddress },
   );
-
-  return { success: true, message: 'Staff assignment deactivated' };
 }
 
 export async function bulkAssignStaff(campaignId: string, dto: BulkAssignStaffDto, actorId: string, ipAddress?: string) {
   const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
-  if (!campaign) throw AppError.notFound('Campaign not found');
+  if (!campaign) throw AppError.notFound('Campaign');
 
   const results: { success: boolean; userId: string; dutyRole: string; sessionId?: string; error?: string }[] = [];
 
@@ -127,8 +138,13 @@ export async function bulkAssignStaff(campaignId: string, dto: BulkAssignStaffDt
 
       if (item.sessionId) {
         const session = await prisma.campaignSession.findFirst({ where: { id: item.sessionId, campaignId } });
-        if (!session) { results.push({ success: false, userId: item.userId, dutyRole: item.dutyRole, sessionId: item.sessionId, error: 'Session not found' }); continue; }
+        if (!session) { results.push({ success: false, userId: item.userId, dutyRole: item.dutyRole, sessionId: item.sessionId, error: 'Session not found in this campaign' }); continue; }
       }
+
+      const duplicate = await prisma.campaignStaffAssignment.findFirst({
+        where: { campaignId, userId: item.userId, sessionId: item.sessionId ?? null, dutyRole: item.dutyRole, isActive: true },
+      });
+      if (duplicate) { results.push({ success: false, userId: item.userId, dutyRole: item.dutyRole, sessionId: item.sessionId, error: 'Already assigned' }); continue; }
 
       await prisma.campaignStaffAssignment.create({
         data: {
