@@ -357,6 +357,8 @@ model User {
   staffAssignmentsGiven   CampaignStaffAssignment[] @relation("StaffAssignedBy")
   doctorAssignmentsGiven  CampaignDoctor[]          @relation("DoctorAssignedBy")
   vaccinationsPerformed   VaccinationRecord[]       @relation("VaccinationPerformedBy")
+  faqCreated              CampaignFaq[]             @relation("FaqCreatedBy")
+  faqUpdated              CampaignFaq[]             @relation("FaqUpdatedBy")
 
   @@map("users")
 }
@@ -1561,6 +1563,7 @@ model Campaign {
   waitlistItems       CampaignWaitlist[]
   analytics           CampaignAnalytics?
   vaccinationRecords  VaccinationRecord[]
+  faqs                CampaignFaq[]
 
   @@index([status, startDate])
   @@index([campaignType])
@@ -1806,6 +1809,29 @@ model CampaignAnalytics {
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@map("campaign_analytics")
+}
+
+model CampaignFaq {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId  String   @map("campaign_id") @db.Uuid
+  questionEn  String   @map("question_en") @db.Text
+  questionBn  String?  @map("question_bn") @db.Text
+  answerEn    String   @map("answer_en") @db.Text
+  answerBn    String?  @map("answer_bn") @db.Text
+  category    String?  @db.VarChar(100)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdBy   User?    @relation("FaqCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?    @relation("FaqUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([campaignId, sortOrder])
+  @@map("campaign_faqs")
 }
 
 // ─── QR Scan Log ──────────────────────────────────────────────────

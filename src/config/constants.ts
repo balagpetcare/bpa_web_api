@@ -30,6 +30,7 @@ export const RESOURCES = {
   CAMPAIGN_CHECKIN: 'campaign_checkin',
   CAMPAIGN_CERTIFICATES: 'campaign_certificates',
   CAMPAIGN_ANALYTICS: 'campaign_analytics',
+  CAMPAIGN_FAQS: 'campaign_faqs',
   CAMPAIGN_STAFF_ASSIGNMENTS: 'campaign_staff_assignments',
   CAMPAIGN_DOCTOR_ASSIGNMENTS: 'campaign_doctor_assignments',
   CAMPAIGN_VACCINATIONS: 'campaign_vaccinations',

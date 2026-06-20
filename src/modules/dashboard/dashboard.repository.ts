@@ -66,7 +66,7 @@ export async function getDashboardSummary() {
     prisma.campaignRegistration.count({ where: { createdAt: { gte: startOfToday } } }).catch(() => 0),
     prisma.campaignRegistration.count({ where: { status: 'pending_payment' } }).catch(() => 0),
     prisma.petCensusSubmission.count({ where: { submittedAt: { gte: startOfToday } } }).catch(() => 0),
-    prisma.contactInquiry.count({ where: { status: 'unread' as any } }).catch(() => prisma.contactInquiry.count({ where: { status: 'new' as any } })),
+    prisma.contactInquiry.count({ where: { status: 'new' } }),
     prisma.contactInquiry.count({ where: { status: { in: ['new', 'read', 'pending'] as any[] } } }),
     prisma.smsLog.count({ where: { status: 'failed', createdAt: { gte: startOfToday } } }),
     prisma.smsLog.count({ where: { status: 'queued' } }),

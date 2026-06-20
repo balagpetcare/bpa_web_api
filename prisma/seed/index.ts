@@ -28,6 +28,7 @@ import { seedCms } from './cms.seed';
 import { seedPayments } from './payments.seed';
 import { seedMailSystem } from './mail.seed';
 import { seedContactInquiryConfig } from './contact-inquiry.seed';
+import { seedCampaignFaqs } from './campaign-faqs.seed';
 
 const prisma = new PrismaClient();
 
@@ -81,6 +82,7 @@ const CRITICAL_MODEL_COUNTS: Array<{ label: string; delegate: string }> = [
   { label: 'Mail accounts', delegate: 'mailAccount' },
   { label: 'Contact types', delegate: 'contactType' },
   { label: 'Inquiry categories', delegate: 'inquiryCategory' },
+  { label: 'Campaign FAQs', delegate: 'campaignFaq' },
 ];
 
 async function printFinalCounts(prisma: PrismaClient) {
@@ -109,7 +111,7 @@ async function main() {
   console.log(line('═'));
 
   // ── 1. Roles & Permissions ────────────────────────────────────────────────
-  section('1/11  Roles & Permissions');
+  section('1/13  Roles & Permissions');
   const rolesResult = await seedRolesAndPermissions(prisma);
   console.log(`  ✓ Permissions  : ${rolesResult.permissions.total} (all resources × actions)`);
   console.log(`  ✓ Roles        : ${rolesResult.roles.upserted} upserted`);
@@ -117,7 +119,7 @@ async function main() {
   console.log(`    Roles: super_admin, admin, editor, viewer, campaign_manager, campaign_volunteer, community_fund_admin, community_fund_viewer`);
 
   // ── 2. Admin User ──────────────────────────────────────────────────────────
-  section('2/11  Admin User');
+  section('2/13  Admin User');
   const userResult = await seedAdminUser(prisma);
   if (userResult.skipped) {
     console.log(`  ⚠  Admin user skipped: ${userResult.reason}`);
@@ -132,12 +134,12 @@ async function main() {
   }
 
   // ── 3. Site Settings ──────────────────────────────────────────────────────
-  section('3/11  Site Settings');
+  section('3/13  Site Settings');
   const settingsResult = await seedSiteSettings(prisma);
   console.log(`  ✓ SiteSettings singleton upserted (id=default): ${settingsResult.upserted} row`);
 
   // ── 4. Location Hierarchy ─────────────────────────────────────────────────
-  section('4/11  Location Hierarchy');
+  section('4/13  Location Hierarchy');
   const locResult = await seedLocations(prisma);
   console.log(`  ✓ Country      : ${locResult.country}`);
   console.log(`  ✓ Divisions    : ${locResult.divisions}`);
@@ -146,7 +148,7 @@ async function main() {
   console.log(`  ✓ Zones        : ${locResult.zones} (DNCC×10 + DSCC×10)`);
 
   // ── 5. Location Nodes (unified tree from flat hierarchy) ──────────────────
-  section('5/11  Location Nodes (unified tree)');
+  section('5/13  Location Nodes (unified tree)');
   const nodeResult = await seedLocationNodes(prisma);
   console.log(`  Active tree counts include ${nodeResult.upazilas} upazilas, ${nodeResult.unions} unions, and ${nodeResult.wards} wards`);
   if (nodeResult.deactivatedLegacyNodes > 0) {
@@ -158,7 +160,7 @@ async function main() {
   console.log(`  ✓ Zones        : ${nodeResult.zones} nodes`);
 
   // ── 6. Campaigns & Vaccines ───────────────────────────────────────────────
-  section('6/11  Campaigns & Vaccine Catalog');
+  section('6/13  Campaigns & Vaccine Catalog');
   const campResult = await seedCampaigns(prisma);
   console.log(`  ✓ Vaccines     : ${campResult.vaccines.created} created, ${campResult.vaccines.skipped} already existed`);
   console.log(`  ✓ Cert template: ${campResult.certTemplate}`);
@@ -166,7 +168,7 @@ async function main() {
   console.log(`  ✓ Svcs/Sessions: ${campResult.services} services, ${campResult.sessions} session(s)`);
 
   // ── 6. Community & Membership ─────────────────────────────────────────────
-  section('7/11  Community & Membership Engine');
+  section('7/13  Community & Membership Engine');
   const commResult = await seedCommunity(prisma);
   console.log(`  ✓ Community zones        : ${commResult.zones}`);
   console.log(`  ✓ Contribution plan      : ${commResult.contributionPlan}`);
@@ -182,7 +184,7 @@ async function main() {
   console.log(`  ✓ Roadmap items          : ${commResult.roadmap} new`);
 
   // ── 7. Donations ──────────────────────────────────────────────────────────
-  section('8/11  Donation System');
+  section('8/13  Donation System');
   const donResult = await seedDonations(prisma);
   console.log(`  ✓ Purposes         : ${donResult.purposes}`);
   console.log(`  ✓ Campaigns        : ${donResult.campaigns}`);
@@ -192,7 +194,7 @@ async function main() {
   console.log(`  ✓ Transparency rpt : ${donResult.transparency}`);
 
   // ── 8. CMS ────────────────────────────────────────────────────────────────
-  section('9/11  CMS (Homepage, Hero Slides, Footer, News)');
+  section('9/13  CMS (Homepage, Hero Slides, Footer, News)');
   const cmsResult = await seedCms(prisma);
   console.log(`  ✓ News categories  : ${cmsResult.categories}`);
   console.log(`  ✓ News tags        : ${cmsResult.tags}`);
@@ -203,23 +205,28 @@ async function main() {
   console.log(`  ✓ Pet Census setup : ${cmsResult.petCensus}`);
 
   // ── 9. Payment / Integration Placeholders ─────────────────────────────────
-  section('10/11 Payment & Integration Settings');
+  section('10/13 Payment & Integration Settings');
   const payResult = await seedPayments(prisma);
   console.log(`  ✓ PSS settings: ${payResult.pssSettings.upserted} placeholder keys upserted`);
   console.log(`    (Activate via admin panel → PetSmart → Settings)`);
 
   // ── 10. Mail & Communications System ──────────────────────────────────────
-  section('11/11 Mail & Communications System');
+  section('11/13 Mail & Communications System');
   const mailResult = await seedMailSystem(prisma);
   console.log(`  ✓ Email Layouts    : ${mailResult.emailLayouts} layouts seeded`);
   console.log(`  ✓ Mail Accounts    : ${mailResult.mailAccounts} accounts seeded`);
   console.log('  Mail accounts seeded inactive; update passwords from Admin Panel.');
 
   // ── 11. Contact Inquiry Config ─────────────────────────────────────────────
-  section('12/12 Contact Inquiry Config');
+  section('12/13 Contact Inquiry Config');
   const ciResult = await seedContactInquiryConfig(prisma);
   console.log(`  ✓ Contact types    : ${ciResult.types.created} created, ${ciResult.types.skipped} already existed`);
   console.log(`  ✓ Inquiry categories: ${ciResult.categories.created} created, ${ciResult.categories.skipped} already existed`);
+
+  // ── 13. Campaign FAQs ───────────────────────────────────────────────────────
+  section('13/13 Campaign FAQs');
+  const faqResult = await seedCampaignFaqs(prisma);
+  console.log(`  ✓ Campaign FAQs    : ${faqResult.created} created, ${faqResult.skipped} skipped, ${faqResult.total} total`);
 
   await printFinalCounts(prisma);
 

@@ -5,3 +5,7 @@ uploads/
 .env.local
 *.log
 .DS_Store
+*.sql
+*.sql.gz
+*.dump
+backups/
