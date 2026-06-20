@@ -209,8 +209,8 @@ export async function getMessageDetailsHandler(req: Request, res: Response, next
       message.isRead = true;
     }
 
-    // Sanitize HTML body for security
-    const sanitizedHtml = sanitizeHtml(message.bodyHtml, SANITIZE_OPTIONS);
+    // Sanitize HTML body for security (guard against null bodyHtml)
+    const sanitizedHtml = sanitizeHtml(message.bodyHtml || '', SANITIZE_OPTIONS);
 
     sendSuccess(res, {
       ...message,
@@ -274,10 +274,10 @@ export async function getThreadDetailsHandler(req: Request, res: Response, next:
   try {
     const result = await threadSvc.getThreadDetails(req.params.id);
     
-    // Sanitize html for all thread messages
+    // Sanitize html for all thread messages (guard against null bodyHtml)
     const sanitizedMessages = result.messages.map(msg => ({
       ...msg,
-      bodyHtml: sanitizeHtml(msg.bodyHtml, SANITIZE_OPTIONS),
+      bodyHtml: sanitizeHtml(msg.bodyHtml || '', SANITIZE_OPTIONS),
     }));
 
     sendSuccess(res, {
