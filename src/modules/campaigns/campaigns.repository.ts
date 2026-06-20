@@ -56,6 +56,8 @@ const campaignDetailInclude = {
   },
   doctors: { include: { doctor: { select: { id: true, name: true, licenseNumber: true } } } },
   volunteers: { include: { user: { select: { id: true, name: true, email: true } } } },
+  analytics: true,
+  _count: { select: { registrations: true, sessions: true, services: true, doctors: true, volunteers: true } },
 } as const;
 
 // ─── Campaign CRUD ───────────────────────────────────────────────

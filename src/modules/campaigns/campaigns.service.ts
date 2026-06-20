@@ -4,6 +4,7 @@ import { generateSlug } from '../../utils/slug';
 import { prisma } from '../../database/prisma';
 import * as repo from './campaigns.repository';
 import * as locationRepo from '../locations/locations.repository';
+import { getCampaignLiveStats } from './campaigns.stats';
 import type {
   CreateCampaignDto, UpdateCampaignDto, CampaignListQuery,
   CreateSessionDto, UpdateSessionDto,
@@ -40,9 +41,12 @@ export async function listCampaigns(query: CampaignListQuery) {
 }
 
 export async function getCampaign(id: string) {
-  const c = await repo.getCampaignById(id);
+  const [c, stats] = await Promise.all([
+    repo.getCampaignById(id),
+    getCampaignLiveStats(id).catch(() => null),
+  ]);
   if (!c) throw AppError.notFound('Campaign not found');
-  return c;
+  return { ...c, stats };
 }
 
 export async function updateCampaign(id: string, dto: UpdateCampaignDto) {
