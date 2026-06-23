@@ -46,8 +46,18 @@ async function resolveRegistration(token: string) {
       include: {
         pet: true,
         services: { include: { campaignService: true } },
-        certificates: { where: { supersededAt: null, revokedAt: null } },
-        vaccinationRecords: { orderBy: { administeredAt: 'desc' as const }, take: 1, include: { doctor: { select: { id: true, name: true, licenseNumber: true, specialization: true } }, signingDoctor: { select: { id: true, name: true, licenseNumber: true } } } },
+        certificates: { where: { supersededAt: null }, select: { id: true, certificateNumber: true, verifyToken: true, issuedAt: true, supersededAt: true } },
+        vaccinationRecords: { orderBy: { administeredAt: 'desc' as const }, take: 1, select: {
+          id: true,
+          vaccineName: true,
+          batchNumber: true,
+          administeredAt: true,
+          nextDueDate: true,
+          doctorId: true,
+          notes: true,
+          createdAt: true,
+          doctor: { select: { id: true, name: true, licenseNumber: true, specialization: true } },
+        } },
       },
     },
   };
@@ -222,7 +232,7 @@ export async function checkIn(campaignId: string, dto: CheckInDto, actorId: stri
     session: { include: { venue: true } },
     owner: true,
     payment: true,
-    petBookings: { include: { pet: true, services: { include: { campaignService: true } }, certificates: { where: { supersededAt: null } } } },
+    petBookings: { include: { pet: true, services: { include: { campaignService: true } }, certificates: { where: { supersededAt: null }, select: { id: true, certificateNumber: true, verifyToken: true, issuedAt: true, supersededAt: true } } } },
   } as const;
 
   let reg;
@@ -303,7 +313,6 @@ export async function vaccinationComplete(campaignId: string, dto: VaccinationCo
       registration: { include: { campaign: true, payment: true } },
       pet: true,
       services: { include: { campaignService: true } },
-      vaccinationRecords: true,
     },
   });
 
@@ -359,8 +368,6 @@ export async function vaccinationComplete(campaignId: string, dto: VaccinationCo
         batchNumber: dto.batchNumber ?? null,
         administeredAt,
         doctorId: signingDoctor?.id ?? null,
-        signingDoctorId: signingDoctor?.id ?? null,
-        performedById: actorId,
         notes: dto.remarks ?? null,
       },
     });
@@ -413,8 +420,7 @@ export async function issueCertificate(campaignId: string, dto: IssueCertificate
     where: { id: dto.petBookingId },
     include: {
       registration: { include: { campaign: true } },
-      certificates: { where: { supersededAt: null, revokedAt: null } },
-      vaccinationRecords: { orderBy: { administeredAt: 'desc' }, take: 1 },
+      certificates: { where: { supersededAt: null }, select: { id: true, certificateNumber: true, verifyToken: true, issuedAt: true, supersededAt: true } },
     },
   });
 
@@ -439,12 +445,6 @@ export async function issueCertificate(campaignId: string, dto: IssueCertificate
   }
 
   const cert = await certSvc.issueCertificate({ petBookingId: dto.petBookingId }, actorId);
-
-  // Attach signing doctor to certificate
-  await prisma.certificate.update({
-    where: { id: cert.id },
-    data: { signingDoctorId: signingDoctor.id },
-  });
 
   await writeAuditLog(
     { action: AuditAction.create, resource: 'certificate_issue', resourceId: cert.id, newValues: { campaignId, petBookingId: dto.petBookingId, signingDoctorId: signingDoctor.id, actorId } },
@@ -472,7 +472,7 @@ export async function resendCertificate(campaignId: string, petBookingId: string
     where: { id: petBookingId },
     include: {
       registration: true,
-      certificates: { where: { supersededAt: null, revokedAt: null } },
+      certificates: { where: { supersededAt: null }, select: { id: true, certificateNumber: true, verifyToken: true, issuedAt: true, supersededAt: true } },
     },
   });
 

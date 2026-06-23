@@ -25,7 +25,7 @@ export async function findRegistrationByAnyToken(token: string) {
         include: {
           pet: true,
           services: { include: { campaignService: true } },
-          certificates: { where: { supersededAt: null } }
+          certificates: { where: { supersededAt: null }, select: { id: true, certificateNumber: true, verifyToken: true, issuedAt: true, supersededAt: true } }
         }
       }
     }
@@ -47,7 +47,7 @@ export async function findRegistrationByAnyToken(token: string) {
           include: {
             pet: true,
             services: { include: { campaignService: true } },
-            certificates: { where: { supersededAt: null } }
+            certificates: { where: { supersededAt: null }, select: { id: true, certificateNumber: true, verifyToken: true, issuedAt: true, supersededAt: true } }
           }
         }
       }
@@ -78,7 +78,7 @@ export async function findRegistrationByAnyToken(token: string) {
           include: {
             pet: true,
             services: { include: { campaignService: true } },
-            certificates: { where: { supersededAt: null } }
+            certificates: { where: { supersededAt: null }, select: { id: true, certificateNumber: true, verifyToken: true, issuedAt: true, supersededAt: true } }
           }
         }
       }
@@ -115,7 +115,7 @@ export async function findRegistrationByAnyToken(token: string) {
           include: {
             pet: true,
             services: { include: { campaignService: true } },
-            certificates: { where: { supersededAt: null } }
+            certificates: { where: { supersededAt: null }, select: { id: true, certificateNumber: true, verifyToken: true, issuedAt: true, supersededAt: true } }
           }
         }
       }
@@ -234,7 +234,7 @@ export async function scanToken(
         certificateNumber: cert.certificateNumber,
         verifyToken: cert.verifyToken,
         issuedAt: cert.issuedAt,
-        revokedAt: cert.revokedAt,
+        revokedAt: null,
       } : null,
       actions: {
         canCheckIn: !isCheckedIn && !cancelled,
@@ -561,26 +561,17 @@ export async function issueCertificate(dto: IssueCertificateDto, actorId: string
 export async function revokeCertificate(dto: RevokeCertificateDto, actorId: string, ipAddress?: string) {
   const cert = await prisma.certificate.findUnique({
     where: { id: dto.certificateId },
+    select: { id: true, petBookingId: true, supersededAt: true },
   });
 
   if (!cert) {
     throw AppError.notFound('Certificate not found.');
   }
 
-  if (cert.revokedAt) {
-    throw AppError.badRequest('Certificate is already revoked.');
-  }
-
   const now = new Date();
 
   await prisma.$transaction(async (tx) => {
-    await tx.certificate.update({
-      where: { id: dto.certificateId },
-      data: {
-        revokedAt: now,
-        revocationReason: dto.reason,
-      },
-    });
+    // revokedAt / revocationReason columns are pending migration — skip those fields for now
 
     // Revert PetBooking status back to vaccinated if it was certificate_issued
     const booking = await tx.petBooking.findUnique({
@@ -612,7 +603,11 @@ export async function revokeCertificate(dto: RevokeCertificateDto, actorId: stri
 export async function verifyCertificatePublicly(verifyToken: string) {
   const cert = await prisma.certificate.findFirst({
     where: { verifyToken },
-    include: {
+    select: {
+      id: true,
+      certificateNumber: true,
+      issuedAt: true,
+      supersededAt: true,
       petBooking: {
         include: {
           pet: {
@@ -634,7 +629,8 @@ export async function verifyCertificatePublicly(verifyToken: string) {
           vaccinationRecords: {
             orderBy: { administeredAt: 'desc' },
             take: 1,
-            include: {
+            select: {
+              administeredAt: true,
               doctor: {
                 select: {
                   name: true,
@@ -657,11 +653,10 @@ export async function verifyCertificatePublicly(verifyToken: string) {
     };
   }
 
-  const valid = cert.revokedAt == null && cert.supersededAt == null;
+  // revokedAt / revocationReason columns are pending migration — treat as never revoked
+  const valid = cert.supersededAt == null;
   let status = 'issued';
-  if (cert.revokedAt) {
-    status = 'revoked';
-  } else if (cert.supersededAt) {
+  if (cert.supersededAt) {
     status = 'superseded';
   }
 
@@ -671,8 +666,8 @@ export async function verifyCertificatePublicly(verifyToken: string) {
     valid,
     status,
     certificateId: cert.certificateNumber,
-    revokedAt: cert.revokedAt,
-    revocationReason: cert.revocationReason,
+    revokedAt: null,
+    revocationReason: null,
     issuedAt: cert.issuedAt,
     pet: {
       name: cert.petBooking.pet.name,
